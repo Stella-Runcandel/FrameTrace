@@ -38,30 +38,24 @@ class MonitorThread(QThread):
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
+        # do this ONCE, before the loop
+        dirs = prof.get_profile_dirs(ACTIVE_PROFILE)
+        capture_path = os.path.join(dirs["captures"], "latest.png")
+
         while self.running:
             ret, frame = cap.read()
             if not ret:
                 continue
 
-            #cv2.imwrite("temp_frame_capture.png", frame)
-
-            if dect.frame_comp(ACTIVE_PROFILE):
-                self.status.emit("Dialogue detected!")
-                notif.alert()
-
-            # 1️⃣ SAVE FRAME TO PROFILE
-            dirs = prof.get_profile_dirs(ACTIVE_PROFILE)
-            capture_path = os.path.join(dirs["captures"], "latest.png")
+            # optional: keep for now
             cv2.imwrite(capture_path, frame)
 
-             # 2️⃣ RUN DETECTION
+            # 🔥 SINGLE detection call
             if dect.frame_comp(ACTIVE_PROFILE):
                 self.status.emit("Dialogue detected!")
                 notif.alert()
 
-
-
-            time.sleep(0.5)
+            time.sleep(0.05)
 
         cap.release()
         self.status.emit("Stopped")
