@@ -1,9 +1,16 @@
-# virtual environment
+# virtual env
+venv/
 .venv/
 
-# python cache
+# python junk
 __pycache__/
 *.pyc
 
-# generated images
+# data / runtime
+Data/
 *.png
+*.log
+
+# IDE
+.vscode/
+.idea/
