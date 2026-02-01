@@ -1,16 +1,19 @@
-# virtual env
-venv/
-.venv/
-
-# python junk
+# ---------- Python ----------
 __pycache__/
 *.pyc
 
-# data / runtime
-Data/
-*.png
-*.log
+# ---------- Virtual env ----------
+venv/
+.venv/
 
-# IDE
+# ---------- Runtime profile data ----------
+Data/Profiles/*
+!Data/Profiles/.gitkeep
+
+Data/Profiles/**/captures/
+Data/Profiles/**/debug/
+Data/Profiles/**/references/
+
+# ---------- IDE ----------
 .vscode/
 .idea/
