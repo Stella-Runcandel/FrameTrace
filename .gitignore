@@ -7,7 +7,7 @@ venv/
 .venv/
 
 # ---------- Runtime profile data ----------
-Data/Profiles/*
+Data/Profiles/**
 !Data/Profiles/.gitkeep
 
 Data/Profiles/**/captures/
