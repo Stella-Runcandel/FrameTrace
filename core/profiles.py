@@ -1,40 +1,38 @@
-#this includes the logic behind when to create 
-#how to create
-#and how to handle files for different games, etc
 import os
 import json
 from datetime import datetime
+import re
+import shutil
 
 BASE_DIR = os.path.join("Data", "Profiles")
 
 def profile_path(name):
     return os.path.join(BASE_DIR, name)
 
-def create_profile(name):
-    path = profile_path(name)
-
-    os.makedirs(os.path.join(path, "references"), exist_ok=True)
-    os.makedirs(os.path.join(path, "captures"), exist_ok=True)
-    os.makedirs(os.path.join(path, "debug"), exist_ok=True)
-
-    meta_path = os.path.join(path, "meta.json")
-    if not os.path.exists(meta_path):
-        with open(meta_path, "w") as f:
-            json.dump({
-                "name": name,
-                "bring_to_front": False,
-                "sound": True
-            }, f, indent=2)
-
-    return path
+def validate_profile_name(profile_name):
+    if not profile_name:
+        return False, "Profile name cannot be empty."
+    name = profile_name.strip()
+    if not name:
+        return False, "Profile name cannot be empty."
+    if name in {".", ".."}:
+        return False, "Profile name is not allowed."
+    if os.path.sep in name or (os.path.altsep and os.path.altsep in name):
+        return False, "Profile name cannot include path separators."
+    if name != os.path.basename(name):
+        return False, "Profile name is not allowed."
+    if not re.match(r"^[A-Za-z0-9 _-]+$", name):
+        return False, "Profile name can only include letters, numbers, spaces, _ or -."
+    return True, ""
 
 def list_profiles():
     if not os.path.exists(BASE_DIR):
         return []
-    return [
+    profiles = [
         d for d in os.listdir(BASE_DIR)
         if os.path.isdir(profile_path(d))
     ]
+    return sorted(profiles, key=str.lower)
 
 
 def get_profile_dirs(profile_name):
@@ -62,12 +60,15 @@ def get_profile_dirs(profile_name):
 def create_profile(profile_name):
     """
     Create a new profile with required folder structure.
-    Returns True if created, False if already exists.
+    Returns (success, message).
     """
-    base = os.path.join("Data", "Profiles", profile_name)
+    valid, message = validate_profile_name(profile_name)
+    if not valid:
+        return False, message
+    base = os.path.join(BASE_DIR, profile_name)
 
     if os.path.exists(base):
-        return False
+        return False, "A profile with that name already exists."
 
     os.makedirs(os.path.join(base, "frames"), exist_ok=True)
     os.makedirs(os.path.join(base, "references"), exist_ok=True)
@@ -85,4 +86,17 @@ def create_profile(profile_name):
             indent=2
         )
 
-    return True
+    return True, f"Profile '{profile_name}' created."
+
+def delete_profile(profile_name):
+    valid, message = validate_profile_name(profile_name)
+    if not valid:
+        return False, message
+    base = os.path.realpath(BASE_DIR)
+    target = os.path.realpath(profile_path(profile_name))
+    if not target.startswith(base + os.path.sep):
+        return False, "Invalid profile path."
+    if not os.path.exists(target):
+        return False, "Profile not found."
+    shutil.rmtree(target)
+    return True, f"Profile '{profile_name}' deleted."

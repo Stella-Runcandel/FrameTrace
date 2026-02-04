@@ -1,18 +1,17 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel
+    QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout
 )
 
 from app.ui.panel_header import PanelHeader
-from app.app_state import app_state
-from core.profiles import list_profiles, create_profile
 from PyQt6.QtWidgets import QInputDialog, QMessageBox
-from core.profiles import create_profile, list_profiles
+from app.controllers.profile_controller import ProfileController
 
 
 class ProfileSelectorPanel(QWidget):
     def __init__(self, nav):
         super().__init__()
         self.nav = nav
+        self.profile_controller = ProfileController()
 
         # ---- header ----
         header = PanelHeader("Select Profile", nav)
@@ -41,29 +40,37 @@ class ProfileSelectorPanel(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        profiles = list_profiles()
+        success, message = self.profile_controller.list_profiles()
+        if not success:
+            self.body_layout.addWidget(QLabel(message))
+            return
+        profiles = message.split("\n") if message else []
 
         if not profiles:
             self.body_layout.addWidget(QLabel("No profiles found"))
             return
 
         for name in profiles:
-            btn = QPushButton(name)
-            btn.clicked.connect(lambda _, n=name: self.select_profile(n))
-            self.body_layout.addWidget(btn)
+            row = QHBoxLayout()
+            select_btn = QPushButton(name)
+            select_btn.clicked.connect(lambda _, n=name: self.select_profile(n))
+            delete_btn = QPushButton("🗑 Delete")
+            delete_btn.clicked.connect(lambda _, n=name: self.delete_profile(n))
+            row.addWidget(select_btn)
+            row.addWidget(delete_btn)
+            self.body_layout.addLayout(row)
 
     def select_profile(self, name):
-        if app_state.monitoring_active:
+        success, message = self.profile_controller.select_profile(name)
+        if not success:
+            QMessageBox.warning(
+                self,
+                "Select Profile",
+                message
+            )
             return
-        app_state.active_profile = name
         self.nav.pop()  # go back to dashboard
 
-    def create_profile(self):
-        # TEMP simple creation (no dialog yet)
-        name = f"Profile_{len(list_profiles()) + 1}"
-        create_profile(name)
-        self.refresh_profiles()
-        
     def create_profile(self):
         name, ok = QInputDialog.getText(
             self,
@@ -75,27 +82,41 @@ class ProfileSelectorPanel(QWidget):
             return
 
         name = name.strip()
-
-        if not create_profile(name):
+        success, message = self.profile_controller.create_profile(name)
+        if not success:
             QMessageBox.warning(
                 self,
-                "Profile Exists",
-                f"A profile named '{name}' already exists."
+                "Create Profile",
+                message
             )
             return
-
-        # Auto-select new profile
-        app_state.active_profile = name
-        app_state.selected_frame = None
-        app_state.selected_reference = None
 
         self.refresh_profiles()
 
         QMessageBox.information(
             self,
             "Profile Created",
-            f"Profile '{name}' created and selected."
+            message
         )
 
         # Go back to dashboard
         self.nav.pop()
+
+    def delete_profile(self, name):
+        confirm = QMessageBox.question(
+            self,
+            "Delete Profile",
+            f"Delete profile '{name}' and all of its data?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        success, message = self.profile_controller.delete_profile(name)
+        if not success:
+            QMessageBox.warning(
+                self,
+                "Delete Profile",
+                message
+            )
+            return
+        self.refresh_profiles()
