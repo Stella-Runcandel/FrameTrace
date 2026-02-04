@@ -24,6 +24,7 @@ class FramesPanel(QWidget):
 
     def __init__(self, nav):
         super().__init__()
+        self.selected_btn = None
         self.nav = nav
 
         header = PanelHeader("Frames", nav)
@@ -111,5 +112,15 @@ class FramesPanel(QWidget):
         self.refresh_frames()
 
     def select_frame(self, frame_name):
+        if app_state.monitoring_active:
+            return
         app_state.selected_frame = frame_name
         self.selected_label.setText(f"Selected frame: {frame_name}")
+
+        if self.selected_btn:
+            self.selected_btn.setStyleSheet("")
+
+        self.selected_btn = self.sender()
+        self.selected_btn.setStyleSheet(
+            "font-weight: bold; background-color: #2d6cdf; color: white;"
+        )

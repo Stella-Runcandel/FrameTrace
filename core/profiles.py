@@ -3,6 +3,7 @@
 #and how to handle files for different games, etc
 import os
 import json
+from datetime import datetime
 
 BASE_DIR = os.path.join("Data", "Profiles")
 
@@ -57,3 +58,31 @@ def get_profile_dirs(profile_name):
             json.dump({"name": profile_name}, f, indent=2)
 
     return dirs
+
+def create_profile(profile_name):
+    """
+    Create a new profile with required folder structure.
+    Returns True if created, False if already exists.
+    """
+    base = os.path.join("Data", "Profiles", profile_name)
+
+    if os.path.exists(base):
+        return False
+
+    os.makedirs(os.path.join(base, "frames"), exist_ok=True)
+    os.makedirs(os.path.join(base, "references"), exist_ok=True)
+    os.makedirs(os.path.join(base, "captures"), exist_ok=True)
+    os.makedirs(os.path.join(base, "debug"), exist_ok=True)
+
+    meta_path = os.path.join(base, "meta.json")
+    with open(meta_path, "w") as f:
+        json.dump(
+            {
+                "name": profile_name,
+                "created_at": datetime.now().isoformat()
+            },
+            f,
+            indent=2
+        )
+
+    return True

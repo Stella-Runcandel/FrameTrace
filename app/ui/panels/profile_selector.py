@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
 from app.ui.panel_header import PanelHeader
 from app.app_state import app_state
 from core.profiles import list_profiles, create_profile
+from PyQt6.QtWidgets import QInputDialog, QMessageBox
+from core.profiles import create_profile, list_profiles
 
 
 class ProfileSelectorPanel(QWidget):
@@ -51,6 +53,8 @@ class ProfileSelectorPanel(QWidget):
             self.body_layout.addWidget(btn)
 
     def select_profile(self, name):
+        if app_state.monitoring_active:
+            return
         app_state.active_profile = name
         self.nav.pop()  # go back to dashboard
 
@@ -59,3 +63,39 @@ class ProfileSelectorPanel(QWidget):
         name = f"Profile_{len(list_profiles()) + 1}"
         create_profile(name)
         self.refresh_profiles()
+        
+    def create_profile(self):
+        name, ok = QInputDialog.getText(
+            self,
+            "Create New Profile",
+            "Enter profile name:"
+        )
+
+        if not ok or not name.strip():
+            return
+
+        name = name.strip()
+
+        if not create_profile(name):
+            QMessageBox.warning(
+                self,
+                "Profile Exists",
+                f"A profile named '{name}' already exists."
+            )
+            return
+
+        # Auto-select new profile
+        app_state.active_profile = name
+        app_state.selected_frame = None
+        app_state.selected_reference = None
+
+        self.refresh_profiles()
+
+        QMessageBox.information(
+            self,
+            "Profile Created",
+            f"Profile '{name}' created and selected."
+        )
+
+        # Go back to dashboard
+        self.nav.pop()

@@ -24,27 +24,29 @@ class DashboardPanel(QWidget):
 
         # ---- status labels ----
         self.profile_label = QLabel("Profile: None")
+        self.frame_label = QLabel("Selected Frame: None")
+        self.ref_label = QLabel("Selected Reference: None")
         self.monitor_label = QLabel("Monitoring: Stopped")
-        self.label = QLabel("Status: Idle")
+        self.status_label = QLabel("Status: Idle")
 
         # ---- action buttons ----
-        #self.profile_btn = QPushButton("👤 Select Profile")
-        #self.ref_btn = QPushButton("📌 Select Reference")
         self.start_btn = QPushButton("▶ Start Monitoring")
         self.stop_btn = QPushButton("⏹ Stop")
 
         # ---- layout ----
         layout = QVBoxLayout()
         layout.addWidget(self.profile_label)
+        layout.addWidget(self.frame_label)
+        layout.addWidget(self.ref_label)
         layout.addWidget(self.monitor_label)
-        layout.addWidget(self.label)
+        layout.addWidget(self.status_label)
         layout.addWidget(self.start_btn)
         layout.addWidget(self.stop_btn)
         self.setLayout(layout)
 
         # ---- services ----
         self.monitor = MonitorService()
-        self.monitor.status.connect(self.label.setText)
+        self.monitor.status.connect(self.status_label.setText)
 
         # ---- controllers ----
         self.monitor_controller = MonitorController(self.monitor)
@@ -52,6 +54,10 @@ class DashboardPanel(QWidget):
         # ---- signals ----
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
+
+        # initial state
+        self.refresh()
+
 
     def select_profile(self):
         profiles = list_profiles()
@@ -82,39 +88,65 @@ class DashboardPanel(QWidget):
             self.label.setText("No reference saved")
 
     def start(self):
-        if not self.monitor.isRunning():
-            msg = self.monitor_controller.start()
-            if msg:
-                self.label.setText(msg)
-        else:
-            self.label.setText("Monitoring already running")
+        if app_state.monitoring_active:
+            self.status_label.setText("Monitoring already running")
+            return
+
+        if not app_state.active_profile:
+            self.status_label.setText("Select a profile first")
+            return
+
+        if not app_state.selected_reference:
+            self.status_label.setText("Select a reference first")
+            return
+
+        self.monitor_controller.start()
+        self.status_label.setText(
+            f"Monitoring started ({app_state.selected_reference})"
+        )
 
         self.refresh()
 
     def stop(self):
-        # Stop ONLY if the monitor thread is actually running
-        if self.monitor.isRunning():
-            msg = self.monitor_controller.stop()
-            if msg:
-                self.label.setText(msg)
-        else:
-            self.label.setText("Monitoring already stopped")
+        if not app_state.monitoring_active:
+            self.status_label.setText("Monitoring is not running")
+            return
 
-        # Update UI after stopping
+        self.monitor_controller.stop()
+        self.status_label.setText("Monitoring stopped")
         self.refresh()
+
 
     def close(self):
         self.monitor_controller.stop()
 
     def refresh(self):
-        profile = app_state.active_profile
+        self.profile_label.setText(
+            f"Profile: {app_state.active_profile or 'None'}"
+        )
 
-        if profile:
-            self.profile_label.setText(f"Profile: {profile}")
-        else:
-            self.profile_label.setText("Profile: None")
+        self.frame_label.setText(
+            f"Selected Frame: {app_state.selected_frame or 'None'}"
+        )
+
+        self.ref_label.setText(
+            f"Selected Reference: {app_state.selected_reference or 'None'}"
+        )
 
         if self.monitor.isRunning():
             self.monitor_label.setText("Monitoring: Running")
         else:
             self.monitor_label.setText("Monitoring: Stopped")
+
+        if app_state.monitoring_active:
+            self.monitor_label.setText(
+                f"Monitoring: Running ({app_state.selected_reference})"
+            )
+        else:
+            self.monitor_label.setText("Monitoring: Stopped")
+
+        # Start is guarded, Stop is NOT
+        self.start_btn.setEnabled(
+            app_state.selected_reference is not None
+            and not self.monitor.isRunning()
+        )

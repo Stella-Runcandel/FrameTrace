@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 
 import os
 import cv2
+import json
 
 from app.ui.panel_header import PanelHeader
 from app.app_state import app_state
@@ -33,35 +34,26 @@ class CropPanel(QWidget):
 
     def add_crop(self):
         profile = app_state.active_profile
-        if not profile:
-            self.info_label.setText("No profile selected")
+        frame = app_state.selected_frame
+
+        if not profile or not frame:
             return
 
         dirs = get_profile_dirs(profile)
-        frames_dir = dirs["frames"]
-        refs_dir = dirs["references"]
 
-        # list available base frames
-        frames = [
-            f for f in os.listdir(frames_dir)
-            if f.lower().endswith(".png")
-        ]
+        frame_path = os.path.join(dirs["frames"], frame)
 
-        if not frames:
-            self.info_label.setText("No base frames found in frames/")
+        if not os.path.exists(frame_path):
             return
 
-        # TEMP: pick first frame (we add selector UI later)
-        frame_name = frames[0]
-        frame_path = os.path.join(frames_dir, frame_name)
-
+        # Load ORIGINAL frame (read-only)
         img = cv2.imread(frame_path)
         if img is None:
-            self.info_label.setText("Failed to load frame")
             return
 
+        # Select ROI on a COPY (frame itself is untouched)
         roi = cv2.selectROI(
-            "Select reference region (ENTER to confirm, ESC to cancel)",
+            "Crop reference from frame",
             img,
             fromCenter=False,
             showCrosshair=True
@@ -74,19 +66,27 @@ class CropPanel(QWidget):
 
         crop = img[y:y+h, x:x+w]
 
-        # generate unique reference name
-        base = os.path.splitext(frame_name)[0]
+        # ---- Save as NEW reference ----
+        base = os.path.splitext(frame)[0]
+
+        refs_dir = dirs["references"]
         existing = [
             f for f in os.listdir(refs_dir)
-            if f.startswith(base)
+            if f.startswith(base) and f.endswith(".png")
         ]
 
         ref_name = f"{base}_ref{len(existing)+1}.png"
         ref_path = os.path.join(refs_dir, ref_name)
 
         cv2.imwrite(ref_path, crop)
-        cv2.destroyAllWindows()
 
-        self.info_label.setText(
-            f"Reference created:\n{ref_name}"
-        )
+        # ---- Save metadata (parent frame) ----
+        meta_path = ref_path.replace(".png", ".json")
+        with open(meta_path, "w") as f:
+            json.dump(
+                {"parent_frame": frame},
+                f,
+                indent=2
+            )
+
+        cv2.destroyAllWindows()
