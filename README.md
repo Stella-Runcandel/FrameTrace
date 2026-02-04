@@ -1,4 +1,4 @@
->.<
+> >.<
 🟦 FrameTrace
 
 Visual state monitoring & detection tool
