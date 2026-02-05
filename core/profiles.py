@@ -5,6 +5,8 @@ import re
 import shutil
 
 BASE_DIR = os.path.join("Data", "Profiles")
+DEBUG_FALLBACK_DIR = os.path.join("Data", "Debug")
+DEBUG_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 
 def profile_path(name):
     return os.path.join(BASE_DIR, name)
@@ -122,6 +124,25 @@ def _safe_realpath(base_dir, name):
     return path
 
 
+def _is_supported_debug_name(name):
+    return name.lower().endswith(DEBUG_EXTENSIONS)
+
+
+def get_debug_dir(profile_name, allow_fallback=False):
+    if profile_name:
+        valid, _ = validate_profile_name(profile_name)
+        if valid:
+            root = profile_path(profile_name)
+            if os.path.isdir(root):
+                debug_dir = os.path.join(root, "debug")
+                os.makedirs(debug_dir, exist_ok=True)
+                return debug_dir, False
+    if allow_fallback:
+        os.makedirs(DEBUG_FALLBACK_DIR, exist_ok=True)
+        return DEBUG_FALLBACK_DIR, True
+    return None, False
+
+
 def list_frames(profile_name):
     dirs = get_profile_dirs(profile_name)
     frames_dir = dirs["frames"]
@@ -146,14 +167,14 @@ def list_references(profile_name):
     return sorted(refs, key=str.lower)
 
 
-def list_debug_frames(profile_name):
-    dirs = get_profile_dirs(profile_name)
-    debug_dir = dirs["debug"]
-    if not os.path.isdir(debug_dir):
+def list_debug_frames(profile_name, allow_fallback=False):
+    # MEDIUM 2: fallback listing is exclusive (profile OR global), never both.
+    debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
+    if not debug_dir or not os.path.isdir(debug_dir):
         return []
     files = [
         f for f in os.listdir(debug_dir)
-        if f.lower().endswith(".png")
+        if f.lower().endswith(DEBUG_EXTENSIONS)
     ]
     return sorted(files, key=str.lower)
 
@@ -207,11 +228,15 @@ def get_reference_image_bytes(profile_name, ref_name):
     return _load_image_bytes(ref_path)
 
 
-def get_debug_image_bytes(profile_name, debug_name):
+def get_debug_image_bytes(profile_name, debug_name, allow_fallback=False):
     if not _is_valid_asset_name(debug_name):
         return None
-    dirs = get_profile_dirs(profile_name)
-    debug_path = _safe_realpath(dirs["debug"], debug_name)
+    if not _is_supported_debug_name(debug_name):
+        return None
+    debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
+    if not debug_dir:
+        return None
+    debug_path = _safe_realpath(debug_dir, debug_name)
     return _load_image_bytes(debug_path)
 
 
@@ -349,17 +374,34 @@ def delete_frame_and_references(profile_name, frame_name):
     return True, message, deleted_refs
 
 
-def delete_all_debug_frames(profile_name):
-    dirs = get_profile_dirs(profile_name)
-    debug_dir = dirs["debug"]
+def delete_debug_frame(profile_name, debug_name, allow_fallback=False):
+    if not _is_valid_asset_name(debug_name):
+        return False
+    if not _is_supported_debug_name(debug_name):
+        return False
+    debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
+    if not debug_dir:
+        return False
+    debug_path = _safe_realpath(debug_dir, debug_name)
+    if not debug_path or not os.path.exists(debug_path):
+        return False
+    if os.path.isfile(debug_path):
+        os.remove(debug_path)
+        return True
+    return False
+
+
+def delete_all_debug_frames(profile_name, allow_fallback=False):
+    debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
     deleted = 0
-    if not os.path.isdir(debug_dir):
+    if not debug_dir or not os.path.isdir(debug_dir):
         return deleted
     for name in os.listdir(debug_dir):
+        if not _is_supported_debug_name(name):
+            continue
         path = os.path.join(debug_dir, name)
         if (
             os.path.isfile(path)
-            and name.lower().endswith(".png")
             and os.path.abspath(path).startswith(os.path.abspath(debug_dir))
         ):
             os.remove(path)

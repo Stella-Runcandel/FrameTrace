@@ -1,14 +1,17 @@
 import cv2
 import os
 import time
-from core.profiles import get_profile_dirs
+from core.profiles import get_profile_dirs, get_debug_dir, profile_path
 
 # ---- dialogue state ----
 _active_dialogue = None        # name of reference currently active
 _last_seen_time = 0.0          # last time dialogue was visible
 EXIT_TIMEOUT = 0.6             # seconds dialogue must disappear to reset
 
-_debug_counter = 0
+_debug_counter = 0  # MEDIUM 1: filename-only counter; not used for logic/throttling/safety.
+_event_active = False
+_last_debug_frame = None
+_DEBUG_SIMILARITY_THRESHOLD = 2.0  # CRITICAL 3: provisional threshold; will be tuned later.
 
 
 def refrence_selector(profile_name):
@@ -55,8 +58,36 @@ def refrence_selector(profile_name):
     cv2.destroyAllWindows()
 
 
+def _frames_similar(current_frame, last_frame):
+    if last_frame is None:
+        return False
+    current_gray = (
+        cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
+        if current_frame.ndim == 3 else current_frame
+    )
+    last_gray = (
+        cv2.cvtColor(last_frame, cv2.COLOR_BGR2GRAY)
+        if last_frame.ndim == 3 else last_frame
+    )
+    if current_gray.shape != last_gray.shape:
+        last_gray = cv2.resize(
+            last_gray,
+            (current_gray.shape[1], current_gray.shape[0]),
+            interpolation=cv2.INTER_AREA
+        )
+    diff = cv2.absdiff(current_gray, last_gray)
+    return diff.mean() <= _DEBUG_SIMILARITY_THRESHOLD
+
+
 def frame_comp(profile_name):
     global _active_dialogue, _last_seen_time, _debug_counter
+    global _event_active, _last_debug_frame
+
+    if not profile_name:
+        return False
+
+    # CRITICAL 1: profile validity only affects debug save location, not detection flow.
+    profile_valid = os.path.isdir(profile_path(profile_name))
 
     dirs = get_profile_dirs(profile_name)
     frame_path = os.path.join(dirs["captures"], "latest.png")
@@ -104,31 +135,43 @@ def frame_comp(profile_name):
     if matched_ref is not None:
         _last_seen_time = now
 
-        # same dialogue still active → do nothing
-        if _active_dialogue == matched_ref:
-            return True
+        event_start = not _event_active
+        if event_start:
+            _event_active = True
 
-        # NEW dialogue detected
-        _active_dialogue = matched_ref
-        _debug_counter += 1
+        if _active_dialogue != matched_ref:
+            _active_dialogue = matched_ref
 
-        debug = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        x, y, w, h = match_bbox
-        cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        if event_start:
+            debug = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            x, y, w, h = match_bbox
+            cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        debug_path = os.path.join(
-            dirs["debug"],
-            f"match_{_debug_counter:04d}.png"
-        )
-        cv2.imwrite(debug_path, debug)
+            if not _frames_similar(debug, _last_debug_frame):
+                _debug_counter += 1
+                debug_dir, _ = get_debug_dir(
+                    profile_name if profile_valid else None,
+                    allow_fallback=True
+                )
+                if debug_dir:
+                    debug_path = os.path.join(
+                        debug_dir,
+                        f"match_{_debug_counter:04d}.png"
+                    )
+                    cv2.imwrite(debug_path, debug)
+                    _last_debug_frame = debug
 
         return True
 
     # no match this frame → check for exit
     if _active_dialogue and now - _last_seen_time > EXIT_TIMEOUT:
         _active_dialogue = None
+        _event_active = False
+        _last_debug_frame = None  # CRITICAL 2: reset similarity guard on event end.
 
     return False
+
+
 def crop_existing_reference(profile_name, ref_name):
     from core.profiles import get_profile_dirs
     import cv2
