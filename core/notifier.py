@@ -15,9 +15,9 @@ def alert(cooldown=5):
 
     # 🔔 Windows notification
     notification.notify(
-        title="Blue Archive",
+        title="Frame Trace",
         message="Dialogue option detected!",
-        app_name="B.A Game Analysis",
+        app_name="Frame Trace",
         timeout=3
     )
 
