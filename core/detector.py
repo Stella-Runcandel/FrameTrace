@@ -1,5 +1,6 @@
 import cv2
 import os
+import re
 import time
 from dataclasses import dataclass
 from core.profiles import (
@@ -20,6 +21,7 @@ class DetectorState:
     last_seen_time: float = 0.0
     last_debug_frame: object = None
     debug_counter: int = 0
+    debug_counter_initialized: bool = False
 
 
 def new_detector_state():
@@ -32,6 +34,22 @@ _default_detector_state = new_detector_state()
 ARTIFACT_POLICY = {
     "debug_retention_count": 200,
 }
+
+
+_DEBUG_FILE_PATTERN = re.compile(r"^match_(\d{4})\.png$")
+
+
+def _get_highest_debug_counter(directory):
+    if not directory or not os.path.isdir(directory):
+        return 0
+
+    highest = 0
+    for name in os.listdir(directory):
+        match = _DEBUG_FILE_PATTERN.match(name)
+        if not match:
+            continue
+        highest = max(highest, int(match.group(1)))
+    return highest
 
 
 def refrence_selector(profile_name):
@@ -166,12 +184,16 @@ def frame_comp_from_array(profile_name, frame, state):
             x, y, w, h = match_bbox
             cv2.rectangle(debug, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-            state.debug_counter += 1
             debug_dir, _ = get_debug_dir(
                 profile_name if profile_valid else None,
                 allow_fallback=True
             )
             if debug_dir:
+                if not state.debug_counter_initialized:
+                    state.debug_counter = _get_highest_debug_counter(debug_dir)
+                    state.debug_counter_initialized = True
+
+                state.debug_counter += 1
                 debug_path = os.path.join(
                     debug_dir,
                     f"match_{state.debug_counter:04d}.png"
