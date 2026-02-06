@@ -34,8 +34,25 @@ def new_detector_state():
     initialize_debug_storage_tracking(state)
     return state
 
+        for name in names:
+            if not name.lower().endswith(DEBUG_EXTENSIONS):
+                continue
+            path = os.path.join(debug_dir, name)
+            try:
+                if os.path.isfile(path):
+                    total += os.path.getsize(path)
+            except Exception:
+                continue
+    return total
 
-_default_detector_state = new_detector_state()
+
+def initialize_debug_storage_tracking(state):
+    try:
+        state.total_debug_storage_bytes = _compute_initial_debug_storage_bytes()
+    except Exception:
+        logging.warning("Failed to initialize debug storage accounting.", exc_info=True)
+        state.total_debug_storage_bytes = DEBUG_STORAGE_LIMIT_BYTES
+
 
 def _iter_all_debug_dirs_for_initialization():
     if os.path.isdir(BASE_DIR):
@@ -112,6 +129,8 @@ def _save_debug_image_if_allowed(debug_dir, debug_image, state):
         state.last_debug_frame = debug_image
     except Exception:
         logging.warning("Failed to write debug image; continuing monitoring.", exc_info=True)
+
+_default_detector_state = new_detector_state()
 
 def refrence_selector(profile_name):
     dirs = get_profile_dirs(profile_name)
