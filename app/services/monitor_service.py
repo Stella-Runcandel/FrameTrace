@@ -26,7 +26,10 @@ class MonitorService(QThread):
     def _list_available_camera_indices(self, max_devices=10):
         available = []
         for index in range(max_devices):
-            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+            cap = cv2.VideoCapture(
+                'video=OBS Virtual Camera',
+                cv2.CAP_FFMPEG
+            )
             try:
                 if cap.isOpened():
                     available.append(index)
