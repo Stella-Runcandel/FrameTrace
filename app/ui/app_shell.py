@@ -76,7 +76,7 @@ class AppShell(QWidget):
                 if app:
                     app.setWindowIcon(icon)
                 return
-        bundled_icon_path = Path(__file__).resolve().parents[2] / "assets" / "app_icon.png"
+        bundled_icon_path = Path(__file__).resolve().parents[2] / "Assets" / "app_icon.png"
         bundled_icon = QIcon(str(bundled_icon_path))
         if not bundled_icon.isNull():
             self.setWindowIcon(bundled_icon)

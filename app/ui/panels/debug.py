@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
 
 from app.app_state import app_state
 from app.ui.panel_header import PanelHeader
+from core import detector as dect
 from app.ui.theme import Styles
 from app.ui.widget_utils import disable_button_focus_rect, disable_widget_interaction, make_preview_label
 from core.profiles import (
@@ -131,7 +132,9 @@ class DebugPanel(QWidget):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        delete_all_debug_frames(profile, allow_fallback=self.debug_fallback)
+        _, bytes_freed = delete_all_debug_frames(profile, allow_fallback=self.debug_fallback)
+        if bytes_freed > 0:
+            dect.notify_debug_storage_freed(bytes_freed)
         self.selected_debug = None
         self.selected_btn = None
         self.update_preview(None)
@@ -155,10 +158,12 @@ class DebugPanel(QWidget):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        deleted = delete_debug_frame(self.debug_profile, debug_name, allow_fallback=self.debug_fallback)
-        if not deleted:
+        success, bytes_freed = delete_debug_frame(self.debug_profile, debug_name, allow_fallback=self.debug_fallback)
+        if not success:
             QMessageBox.warning(self, "Delete Debug Frame", "Debug frame could not be deleted.")
             return
+        if bytes_freed > 0:
+            dect.notify_debug_storage_freed(bytes_freed)
         if self.selected_debug == debug_name:
             self.selected_debug = None
             self.selected_btn = None

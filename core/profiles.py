@@ -1,3 +1,9 @@
+"""Profile and data management for FrameTrace.
+
+Manages the Data/Profiles directory structure: each profile has frames/,
+references/, captures/, debug/, and meta.json. Handles validation, CRUD
+operations, and asset paths with safe realpath checks to prevent traversal.
+"""
 import os
 import json
 from datetime import datetime
@@ -41,6 +47,7 @@ def list_profiles():
 
 
 def get_profile_dirs(profile_name):
+    """Ensure profile directories exist and return paths dict (root, frames, references, captures, debug, meta)."""
     root = os.path.join(BASE_DIR, profile_name)
 
     dirs = {
@@ -94,6 +101,7 @@ def create_profile(profile_name):
     return True, f"Profile '{profile_name}' created."
 
 def delete_profile(profile_name):
+    """Remove a profile and its data. Returns (success, message). Validates path to prevent traversal."""
     valid, message = validate_profile_name(profile_name)
     if not valid:
         return False, message
@@ -481,27 +489,34 @@ def delete_frame_and_references(profile_name, frame_name):
 
 
 def delete_debug_frame(profile_name, debug_name, allow_fallback=False):
+    """Delete a single debug frame. Returns (success, bytes_freed)."""
     if not _is_valid_asset_name(debug_name):
-        return False
+        return False, 0
     if not _is_supported_debug_name(debug_name):
-        return False
+        return False, 0
     debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
     if not debug_dir:
-        return False
+        return False, 0
     debug_path = _safe_realpath(debug_dir, debug_name)
     if not debug_path or not os.path.exists(debug_path):
-        return False
+        return False, 0
     if os.path.isfile(debug_path):
+        try:
+            bytes_freed = os.path.getsize(debug_path)
+        except Exception:
+            bytes_freed = 0
         os.remove(debug_path)
-        return True
-    return False
+        return True, bytes_freed
+    return False, 0
 
 
 def delete_all_debug_frames(profile_name, allow_fallback=False):
+    """Delete all debug frames. Returns (deleted_count, bytes_freed)."""
     debug_dir, _ = get_debug_dir(profile_name, allow_fallback=allow_fallback)
     deleted = 0
+    bytes_freed = 0
     if not debug_dir or not os.path.isdir(debug_dir):
-        return deleted
+        return deleted, bytes_freed
     for name in os.listdir(debug_dir):
         if not _is_supported_debug_name(name):
             continue
@@ -510,6 +525,10 @@ def delete_all_debug_frames(profile_name, allow_fallback=False):
             os.path.isfile(path)
             and os.path.abspath(path).startswith(os.path.abspath(debug_dir))
         ):
+            try:
+                bytes_freed += os.path.getsize(path)
+            except Exception:
+                pass
             os.remove(path)
             deleted += 1
-    return deleted
+    return deleted, bytes_freed

@@ -1,3 +1,5 @@
+import logging
+
 from app.app_state import app_state
 
 
@@ -21,6 +23,7 @@ class MonitorController:
             return "Not monitoring"
 
         self.monitor.stop()
-        self.monitor.wait()
+        if not self.monitor.wait(5000):
+            logging.warning("Monitor thread did not exit within 5 seconds")
         app_state.monitoring_active = False
         return "Monitoring stopped"

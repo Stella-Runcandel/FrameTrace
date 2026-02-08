@@ -39,6 +39,7 @@ It’s a local, power-user tool for people who want control.
 
 - Monitoring runs detection directly against **in-memory camera frames** using  
   `frame_comp_from_array`, avoiding per-cycle disk round-trips.
+- **Only the selected reference** is monitored when monitoring is active; select one in the References panel.
 - File-based detection (`frame_comp`) remains available for manual and debug
   workflows that intentionally operate on `captures/latest.png`.
 
@@ -48,18 +49,21 @@ Artifact persistence is **optional, throttled, and bounded**.
 
 Retention behavior is configured in `core/detector.py`:
 
-- `capture_snapshot_interval_s` — minimum interval between capture snapshots  
-- `capture_retention_count` — maximum retained `captures/snapshot_*.png` files  
-- `debug_retention_count` — maximum retained `debug/match_*.png` files  
-
-Additional behavior:
-- A forced capture snapshot is recorded when a **new detection event starts**
-- Retention rules are enforced immediately after capture
+- `DEBUG_STORAGE_LIMIT_BYTES` — maximum debug storage (1 GB); writes pause when reached
+- `EXIT_TIMEOUT` — seconds the dialogue must be absent before the event resets (0.6 s)
+- Debug images are written when a **new detection event starts**; manual deletion updates accounting
 
 This guarantees:
 - no unbounded disk growth
 - predictable storage usage
 - safe long-running sessions
+
+### Architecture
+
+- **core/detector.py** — edge-based template matching (Canny + matchTemplate)
+- **core/profiles.py** — profile and asset management (Data/Profiles layout)
+- **core/notifier.py** — Windows notification and sound alerts
+- **app/services/monitor_service.py** — camera capture and detection loop (QThread)
 
 ---
 

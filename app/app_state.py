@@ -1,4 +1,6 @@
 class AppState:
+    """Global UI and monitoring state: active profile, selected frame/reference, monitoring flag."""
+
     def __init__(self):
         self.active_profile = None
         self.selected_frame = None

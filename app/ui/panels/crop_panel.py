@@ -49,13 +49,26 @@ class CropPanel(QWidget):
         if img is None:
             return
 
-        roi = cv2.selectROI("Crop reference from frame", img, fromCenter=False, showCrosshair=True)
+        orig_h, orig_w = img.shape[:2]
+        if orig_w <= 0 or orig_h <= 0:
+            cv2.destroyAllWindows()
+            return
+        scale = min(1200 / orig_w, 800 / orig_h, 1.0)
+        disp = cv2.resize(
+            img,
+            (int(orig_w * scale), int(orig_h * scale)),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        roi = cv2.selectROI("Crop reference from frame", disp, fromCenter=False, showCrosshair=True)
         x, y, w, h = roi
         if w <= 0 or h <= 0:
             cv2.destroyAllWindows()
             return
 
-        crop = img[y : y + h, x : x + w]
+        x0, y0 = int(x / scale), int(y / scale)
+        x1, y1 = int((x + w) / scale), int((y + h) / scale)
+        crop = img[y0:y1, x0:x1]
         base = os.path.splitext(frame)[0]
 
         refs_dir = dirs["references"]

@@ -1,3 +1,4 @@
+"""Alert backend for FrameTrace: Windows notification and system sound on detection."""
 import logging
 import time
 
@@ -7,6 +8,7 @@ import winsound
 _last_alert = 0
 
 def alert(cooldown=5):
+    """Show a Windows notification and play a sound. Respects cooldown (seconds) to avoid spam."""
     global _last_alert
     now = time.time()
 

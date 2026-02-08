@@ -16,6 +16,8 @@ from app.app_state import app_state
 
 
 class MonitorService(QThread):
+    """Background thread that captures camera frames and runs detection. Emits status on match."""
+
     status = pyqtSignal(str)
 
     def __init__(self):
@@ -39,59 +41,64 @@ class MonitorService(QThread):
         return self._list_available_camera_indices(max_devices=max_devices)
 
     def run(self):
-        profile = app_state.active_profile
-        if not profile:
-            self.status.emit("No profile selected")
-            return
-
-        app_state.monitoring_active = True
-        self.running = True
-        self.status.emit("Monitoring...")
-        self.detector_state = dect.new_detector_state()
-
-        get_profile_dirs(profile)
-        camera_index = get_profile_camera_index(profile)
-        if not has_profile_camera_index(profile):
-            available = self._list_available_camera_indices()
-            if available:
-                camera_index = available[0]
-                set_profile_camera_index(profile, camera_index)
-
-        cap = None
+        """Capture from camera, run detection on each frame, alert on match. Uses selected_reference when set."""
         try:
-            cap = cv2.VideoCapture(camera_index)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-
-            if not cap.isOpened():
-                self.status.emit(f"Camera failed ({camera_index}). Select another camera index.")
+            profile = app_state.active_profile
+            if not profile:
+                self.status.emit("No profile selected")
                 return
-            logging.info("Using camera index %s", camera_index)
 
-            while self.running:
-                ret, frame = cap.read()
-                if not ret:
-                    continue
+            app_state.monitoring_active = True
+            self.running = True
+            self.status.emit("Monitoring...")
+            self.detector_state = dect.new_detector_state()
 
-                try:
-                    if dect.frame_comp_from_array(
-                        profile,
-                        frame,
-                        self.detector_state,
-                    ):
-                        self.status.emit("Dialogue detected!")
-                        try:
-                            notif.alert()
-                        except Exception:
-                            logging.error("Alert backend failure", exc_info=True)
-                except Exception:
-                    logging.error("Detection crash", exc_info=True)
-                    continue
+            get_profile_dirs(profile)
+            camera_index = get_profile_camera_index(profile)
+            if not has_profile_camera_index(profile):
+                available = self._list_available_camera_indices()
+                if available:
+                    camera_index = available[0]
+                    set_profile_camera_index(profile, camera_index)
 
-                time.sleep(0.05)
+            cap = None
+            try:
+                cap = cv2.VideoCapture(camera_index)
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
+                if not cap.isOpened():
+                    self.status.emit(f"Camera failed ({camera_index}). Select another camera index.")
+                    return
+                logging.info("Using camera index %s", camera_index)
+
+                while self.running:
+                    ret, frame = cap.read()
+                    if not ret:
+                        continue
+
+                    try:
+                        selected_ref = app_state.selected_reference
+                        if dect.frame_comp_from_array(
+                            profile,
+                            frame,
+                            self.detector_state,
+                            selected_reference=selected_ref,
+                        ):
+                            self.status.emit("Dialogue detected!")
+                            try:
+                                notif.alert()
+                            except Exception:
+                                logging.error("Alert backend failure", exc_info=True)
+                    except Exception:
+                        logging.error("Detection crash", exc_info=True)
+                        continue
+
+                    time.sleep(0.05)
+            finally:
+                if cap is not None:
+                    cap.release()
         finally:
-            if cap is not None:
-                cap.release()
             self.running = False
             app_state.monitoring_active = False
             self.status.emit("Stopped")

@@ -91,7 +91,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Frame Trace")
 
-    icon_path = Path(__file__).resolve().parent.parent / "assets" / "app_icon.png"
+    icon_path = Path(__file__).resolve().parent.parent / "Assets" / "app_icon.png"
     app_icon = QIcon(str(icon_path))
     if not app_icon.isNull():
         app.setWindowIcon(app_icon)

@@ -187,7 +187,7 @@ class DashboardPanel(QWidget):
             return
 
         self.status_label.setText("Select reference region…")
-        _, message = dect.refrence_selector(app_state.active_profile)
+        _, message = dect.reference_selector(app_state.active_profile)
         self.status_label.setText(message)
 
     def start(self):

@@ -1,7 +1,15 @@
+"""Visual detection engine for FrameTrace.
+
+Uses OpenCV edge-based template matching to detect user-defined references
+in camera frames. Detection flow: grayscale -> Canny edges -> matchTemplate
+with TM_CCOEFF_NORMED. Debug images are written on detection events, with
+a 1 GB storage limit and accounting for manual deletions via notify_debug_storage_freed.
+"""
 import cv2
-import os
-import time
 import logging
+import os
+import threading
+import time
 from dataclasses import dataclass
 from core.profiles import (
     BASE_DIR,
@@ -15,6 +23,16 @@ from core.profiles import (
 
 EXIT_TIMEOUT = 0.6  # seconds dialogue must disappear to reset
 DEBUG_STORAGE_LIMIT_BYTES = 1_073_741_824  # 1 GB
+
+_debug_storage_freed_bytes = 0
+_debug_storage_lock = threading.Lock()
+
+
+def notify_debug_storage_freed(bytes_freed: int):
+    """Notify the detector that debug images were deleted. Updates in-memory accounting."""
+    global _debug_storage_freed_bytes
+    with _debug_storage_lock:
+        _debug_storage_freed_bytes += bytes_freed
 
 
 # =========================
@@ -93,7 +111,9 @@ def _emit_debug_limit_warning_once(state: DetectorState):
 
 def _save_debug_image_if_allowed(debug_dir, debug_image, state: DetectorState):
     try:
-        if state.total_debug_storage_bytes >= DEBUG_STORAGE_LIMIT_BYTES:
+        with _debug_storage_lock:
+            effective_used = state.total_debug_storage_bytes - _debug_storage_freed_bytes
+        if effective_used >= DEBUG_STORAGE_LIMIT_BYTES:
             _emit_debug_limit_warning_once(state)
             return
 
@@ -141,7 +161,8 @@ _default_detector_state = new_detector_state()
 # Reference selection
 # =========================
 
-def refrence_selector(profile_name):
+def reference_selector(profile_name):
+    """Open an ROI dialog to crop a reference from the first base frame. Returns (success, message)."""
     dirs = get_profile_dirs(profile_name)
 
     frames_dir = dirs["frames"]
@@ -155,6 +176,8 @@ def refrence_selector(profile_name):
         return False, "Base frame could not be loaded"
 
     orig_h, orig_w = img.shape[:2]
+    if orig_w <= 0 or orig_h <= 0:
+        return False, "Base frame has invalid dimensions"
     scale = min(1200 / orig_w, 800 / orig_h, 1.0)
 
     disp = cv2.resize(
@@ -180,7 +203,7 @@ def refrence_selector(profile_name):
     crop = img[y0:y1, x0:x1]
 
     ref_dir = dirs["references"]
-    existing = [f for f in os.listdir(ref_dir) if f.endswith(".png")]
+    existing = [f for f in os.listdir(ref_dir) if f.lower().endswith(".png")]
     ref_path = os.path.join(ref_dir, f"ref_{len(existing) + 1}.png")
 
     cv2.imwrite(ref_path, crop)
@@ -192,17 +215,28 @@ def refrence_selector(profile_name):
 # Detection core
 # =========================
 
-def _detect_from_gray(profile_name, frame_gray):
+def _detect_from_gray(profile_name, frame_gray, selected_reference: str | None = None):
     frame_e = cv2.Canny(frame_gray, 80, 160)
     references_dir = get_profile_dirs(profile_name)["references"]
 
-    for ref in os.listdir(references_dir):
+    refs_to_check = (
+        [selected_reference]
+        if selected_reference
+        else [f for f in os.listdir(references_dir) if f.lower().endswith(".png")]
+    )
+    for ref in refs_to_check:
+        if not ref.lower().endswith(".png"):
+            continue
         ref_path = os.path.join(references_dir, ref)
         template = cv2.imread(ref_path, cv2.IMREAD_GRAYSCALE)
         if template is None:
             continue
 
         template_e = cv2.Canny(template, 80, 160)
+        tw, th = template_e.shape[1], template_e.shape[0]
+        fw, fh = frame_e.shape[1], frame_e.shape[0]
+        if tw > fw or th > fh:
+            continue
         result = cv2.matchTemplate(frame_e, template_e, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
@@ -221,7 +255,9 @@ def _detect_from_gray(profile_name, frame_gray):
     return None, None
 
 
-def frame_comp_from_array(profile_name, frame, state: DetectorState):
+def frame_comp_from_array(profile_name, frame, state: DetectorState, selected_reference: str | None = None):
+    """Run detection on an in-memory frame. When selected_reference is set, only that reference
+    is matched; otherwise all references are checked. Returns True if a match is found."""
     if not profile_name or frame is None:
         return False
 
@@ -233,7 +269,7 @@ def frame_comp_from_array(profile_name, frame, state: DetectorState):
     )
 
     now = time.time()
-    matched_ref, match_bbox = _detect_from_gray(profile_name, frame_gray)
+    matched_ref, match_bbox = _detect_from_gray(profile_name, frame_gray, selected_reference)
 
     if matched_ref is not None:
         state.last_seen_time = now
