@@ -28,3 +28,55 @@ dist/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# =========================
+# Python / Virtual Envs
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.env/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Runtime Data (DO NOT COMMIT)
+# =========================
+Data/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Logs & Debug Output
+# =========================
+logs/
+Logs/
+*.log
+
+# =========================
+# FFmpeg binaries (runtime only)
+# =========================
+bin/ffmpeg.exe
+bin/*.dll
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Test artifacts
+# =========================
+.coverage
+htmlcov/
