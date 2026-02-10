@@ -29,8 +29,9 @@ def make_preview_label(
     label.setScaledContents(False)
     label.setSizePolicy(
         QSizePolicy.Policy.Expanding,
-        QSizePolicy.Policy.Expanding,
+        QSizePolicy.Policy.Fixed,
     )
+    label.setFixedHeight(min(360, max(min_height, 180)))
 
     label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
     label.setFocusPolicy(Qt.FocusPolicy.NoFocus)

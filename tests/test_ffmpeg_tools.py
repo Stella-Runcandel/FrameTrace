@@ -9,6 +9,9 @@ from app.services import ffmpeg_tools
 class FfmpegToolsTests(unittest.TestCase):
     """Validate FFmpeg output parsing."""
 
+    def setUp(self):
+        ffmpeg_tools._ENUM_CACHE = None
+
     def test_parse_dshow_devices(self):
         """Parse DirectShow device list from stderr text."""
         sample = """
@@ -44,3 +47,22 @@ class FfmpegToolsTests(unittest.TestCase):
     def test_list_video_devices_returns_empty_on_failure(self, _):
         """Device enumeration should fail safely when FFmpeg is unavailable."""
         self.assertEqual(ffmpeg_tools.list_video_devices(), [])
+
+
+    @patch("app.services.ffmpeg_tools._run_ffmpeg_command", side_effect=RuntimeError("boom"))
+    @patch("app.services.ffmpeg_tools.platform.system", return_value="Windows")
+    @patch("app.services.ffmpeg_tools._probe_opencv_indices", return_value=["Camera 0"])
+    def test_list_video_devices_windows_fallback(self, probe_mock, _platform_mock, _cmd_mock):
+        """FFmpeg failure should fallback to OpenCV probing on Windows."""
+        ffmpeg_tools._ENUM_CACHE = None
+        devices = ffmpeg_tools.list_video_devices(force_refresh=True)
+        self.assertEqual(devices, ["Camera 0"])
+        probe_mock.assert_called_once()
+
+    @patch("app.services.ffmpeg_tools._run_ffmpeg_command")
+    def test_list_video_devices_uses_cache(self, run_mock):
+        """Enumeration cache should be reused until force_refresh."""
+        run_mock.return_value = SimpleNamespace(stdout="", stderr="", returncode=1)
+        ffmpeg_tools._ENUM_CACHE = ["Cached Cam"]
+        self.assertEqual(ffmpeg_tools.list_video_devices(), ["Cached Cam"])
+        run_mock.assert_not_called()

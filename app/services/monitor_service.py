@@ -77,6 +77,23 @@ def _release_global_capture():
         _GLOBAL_CONFIG = None
 
 
+def get_latest_global_frame():
+    """Return the latest captured frame tuple (timestamp, raw bytes) without draining queue."""
+    with _GLOBAL_CAPTURE_LOCK:
+        if not _GLOBAL_QUEUE:
+            return None
+        return _GLOBAL_QUEUE.peek_latest()
+
+
+def freeze_latest_global_frame():
+    """Return an immutable copy of the latest frame for freeze-frame snapshots."""
+    latest = get_latest_global_frame()
+    if latest is None:
+        return None
+    timestamp, raw = latest
+    return timestamp, bytes(raw)
+
+
 class MonitorService(QThread):
     """Background thread that captures camera frames and runs detection. Emits status on match."""
 
@@ -101,6 +118,9 @@ class MonitorService(QThread):
                 return
 
             get_profile_dirs(profile)
+            if not app_state.selected_reference:
+                self.status.emit("No reference selected")
+                return
             device_name = get_profile_camera_device(profile)
             if not device_name:
                 self.status.emit("No camera selected")

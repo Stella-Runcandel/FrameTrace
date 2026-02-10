@@ -138,10 +138,17 @@ class FramesPanel(QWidget):
             QMessageBox.warning(self, "Select Frame", message)
             return
 
-        self.selected_label.setText(f"Selected frame: {frame_name}")
-        self.update_preview(frame_name)
         if self.selected_btn:
             self.selected_btn.setStyleSheet(Styles.button())
+
+        if app_state.selected_frame is None:
+            self.selected_btn = None
+            self.selected_label.setText("Selected frame: None")
+            self.update_preview(None)
+            return
+
+        self.selected_label.setText(f"Selected frame: {frame_name}")
+        self.update_preview(frame_name)
         self.selected_btn = self.sender()
         self.selected_btn.setStyleSheet(Styles.selected_button())
 
@@ -170,8 +177,8 @@ class FramesPanel(QWidget):
         data = get_frame_image_bytes(app_state.active_profile, frame_name)
         if not data:
             self.preview_bytes = None
-            self.preview_label.setText("Frame preview unavailable")
-            self.preview_label.setPixmap(QPixmap())
+            app_state.selected_frame = None
+            self.refresh_frames()
             return
         self.preview_bytes = data
         pixmap = QPixmap()

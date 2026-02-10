@@ -7,6 +7,9 @@ class FrameController:
         """Mutates: selected_frame. Does NOT mutate: monitoring_active. Returns: (bool, str)."""
         if app_state.monitoring_active:
             return False, "Stop monitoring before selecting a frame."
+        if app_state.selected_frame == frame_name:
+            app_state.selected_frame = None
+            return True, "Frame selection cleared."
         app_state.selected_frame = frame_name
         return True, "Frame selected."
 

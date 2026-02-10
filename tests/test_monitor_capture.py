@@ -103,3 +103,13 @@ class MonitorCaptureTests(unittest.TestCase):
             service.stop()
             service.stop()
             release_mock.assert_called_once()
+
+    def test_get_latest_global_frame_does_not_drain_queue(self):
+        """Global preview accessor should read latest frame without removing queued frames."""
+        queue = self.monitor_service.FrameQueue(maxlen=4)
+        queue.put((1.0, b"a"))
+        queue.put((2.0, b"b"))
+        self.monitor_service._GLOBAL_QUEUE = queue
+        latest = self.monitor_service.get_latest_global_frame()
+        self.assertEqual(latest, (2.0, b"b"))
+        self.assertEqual(queue.size(), 2)

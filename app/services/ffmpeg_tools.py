@@ -1,5 +1,6 @@
 """FFmpeg discovery and command helpers for Windows capture."""
 import os
+import platform
 import re
 import subprocess
 from dataclasses import dataclass
@@ -16,6 +17,9 @@ class CaptureConfig:
     width: int
     height: int
     fps: int
+
+
+_ENUM_CACHE: list[str] | None = None
 
 
 def resolve_ffmpeg_path() -> str:
@@ -50,14 +54,42 @@ def _run_ffmpeg_command(args, timeout=10, text=True):
 
 def list_dshow_video_devices():
     """Return DirectShow video device names using FFmpeg enumeration."""
-    return list_video_devices()
+    return list_video_devices(force_refresh=True)
 
 
-def list_video_devices() -> list[str]:
+def _probe_opencv_indices(max_devices=12, max_consecutive_failures=3) -> list[str]:
+    """Probe camera indexes with OpenCV as Windows fallback enumeration only."""
+    try:
+        import cv2
+    except Exception:
+        return []
+
+    devices = []
+    failures = 0
+    for idx in range(max_devices):
+        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        ok = bool(cap and cap.isOpened())
+        if ok:
+            devices.append(f"Camera {idx}")
+            failures = 0
+        else:
+            failures += 1
+        if cap:
+            cap.release()
+        if failures >= max_consecutive_failures:
+            break
+    return devices
+
+
+def list_video_devices(force_refresh: bool = False) -> list[str]:
     """
     Return a list of video capture device names discovered via FFmpeg (Windows).
     Must be safe, fail gracefully, and return [] on error.
     """
+    global _ENUM_CACHE
+    if _ENUM_CACHE is not None and not force_refresh:
+        return list(_ENUM_CACHE)
+
     ffmpeg_path = resolve_ffmpeg_path()
     args = [
         ffmpeg_path,
@@ -69,13 +101,21 @@ def list_video_devices() -> list[str]:
         "-i",
         "dummy",
     ]
+
+    devices = []
     try:
         # FFmpeg writes DirectShow device listings to stderr for this command.
         result = _run_ffmpeg_command(args, timeout=10, text=True)
         output = result.stderr or ""
-        return _parse_dshow_video_devices(output)
+        devices = _parse_dshow_video_devices(output)
     except Exception:
-        return []
+        devices = []
+
+    if not devices and platform.system() == "Windows":
+        devices = _probe_opencv_indices()
+
+    _ENUM_CACHE = list(devices)
+    return list(_ENUM_CACHE)
 
 
 def _parse_dshow_video_devices(output: str):
@@ -122,7 +162,7 @@ def build_ffmpeg_capture_command(device_name: str, config: CaptureConfig):
 
 
 def capture_single_frame(device_name: str, width: int, height: int, fps: int):
-    """Capture a single raw frame from FFmpeg for UI preview."""
+    """Capture a single raw frame from FFmpeg for legacy callers."""
     config = CaptureConfig(width=width, height=height, fps=fps)
     args = [
         resolve_ffmpeg_path(),

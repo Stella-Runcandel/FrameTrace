@@ -137,3 +137,46 @@ class UiBehaviorTests(unittest.TestCase):
         panel = self.DashboardPanel(DummyNav())
         panel.start()
         self.assertEqual(panel.status_label.text(), "Select a reference first")
+
+
+    def test_frame_click_toggles_selection(self):
+        """Clicking selected frame again should clear selection."""
+        from app.ui.panels.frames import FramesPanel
+
+        self.profiles.create_profile("Theta")
+        self.app_state.active_profile = "Theta"
+
+        frame_dir = Path("Data") / "Profiles" / "Theta" / "frames"
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        frame_path = frame_dir / "frame.png"
+        frame_path.write_bytes(b"fake")
+        self.storage.add_frame("Theta", frame_path.name, str(frame_path))
+
+        panel = FramesPanel(DummyNav())
+        select_button = next(
+            btn for btn in panel.findChildren(self.QPushButton)
+            if btn.text() == "frame.png"
+        )
+
+        select_button.click()
+        self.assertEqual(self.app_state.selected_frame, "frame.png")
+        self.assertEqual(panel.selected_label.text(), "Selected frame: frame.png")
+
+        select_button.click()
+        self.assertIsNone(self.app_state.selected_frame)
+        self.assertEqual(panel.selected_label.text(), "Selected frame: None")
+
+
+    def test_reference_controller_click_toggles_selection(self):
+        """Reference selection controller should toggle selected item off."""
+        from app.controllers.reference_controller import ReferenceController
+
+        self.app_state.selected_reference = None
+        controller = ReferenceController()
+        ok, _ = controller.select_reference("ref-a.png")
+        self.assertTrue(ok)
+        self.assertEqual(self.app_state.selected_reference, "ref-a.png")
+
+        ok, _ = controller.select_reference("ref-a.png")
+        self.assertTrue(ok)
+        self.assertIsNone(self.app_state.selected_reference)

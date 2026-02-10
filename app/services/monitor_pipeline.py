@@ -44,6 +44,13 @@ class FrameQueue:
         with self._not_empty:
             self._queue.clear()
 
+    def peek_latest(self):
+        """Return most recent frame without removing it."""
+        with self._lock:
+            if not self._queue:
+                return None
+            return self._queue[-1]
+
     def size(self) -> int:
         """Return current queue length (thread-safe)."""
         with self._lock:

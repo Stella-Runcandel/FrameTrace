@@ -7,6 +7,9 @@ class ReferenceController:
         """Mutates: selected_reference. Does NOT mutate: monitoring_active. Returns: (bool, str)."""
         if app_state.monitoring_active:
             return False, "Stop monitoring before selecting a reference."
+        if app_state.selected_reference == ref_name:
+            app_state.selected_reference = None
+            return True, "Reference selection cleared."
         app_state.selected_reference = ref_name
         return True, "Reference selected."
 
