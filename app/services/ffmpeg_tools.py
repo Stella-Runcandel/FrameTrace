@@ -117,34 +117,9 @@ def build_capture_input_candidates(selected_display_name: str, force_refresh: bo
     if not device:
         return []
 
-    candidates: list[CaptureInputCandidate] = [
-        CaptureInputCandidate(device.ffmpeg_token, "exact-enumerated-token", is_virtual=device.is_virtual)
-    ]
-    if platform.system() == "Windows":
-        if not device.ffmpeg_token.startswith('video="'):
-            candidates.append(
-                CaptureInputCandidate(f'video="{device.display_name}"', "quoted-dshow-token", is_virtual=device.is_virtual)
-            )
-        if not device.ffmpeg_token.startswith("video="):
-            candidates.append(
-                CaptureInputCandidate(
-                    f"video={device.display_name}",
-                    "raw-name-with-video-prefix",
-                    is_virtual=device.is_virtual,
-                )
-            )
-        candidates.append(CaptureInputCandidate(device.display_name, "raw-device-name", is_virtual=device.is_virtual))
-
-    deduped: list[CaptureInputCandidate] = []
-    seen: set[str] = set()
-    for item in candidates:
-        if item.token in seen:
-            continue
-        seen.add(item.token)
-        deduped.append(item)
-
-    append_camera_debug_log("CAM_CAPTURE_CANDIDATES", json.dumps([i.__dict__ for i in deduped], ensure_ascii=False, indent=2))
-    return deduped
+    candidate = CaptureInputCandidate(device.ffmpeg_token, "exact-enumerated-token", is_virtual=device.is_virtual)
+    append_camera_debug_log("CAM_CAPTURE_CANDIDATE", json.dumps(candidate.__dict__, ensure_ascii=False, indent=2))
+    return [candidate]
 
 
 def verify_windows_dshow_device_token(input_token: str, timeout: int = 8) -> tuple[bool, str]:
@@ -198,7 +173,7 @@ def resolve_camera_device_token(selected_display_name: str, force_refresh: bool 
     return None
 
 
-def build_ffmpeg_capture_command(input_token: str, config: CaptureConfig):
+def build_ffmpeg_capture_command(input_token: str, config: CaptureConfig, *, allow_input_tuning: bool = True):
     cmd = [
         resolve_ffmpeg_path(),
         "-hide_banner",
@@ -210,9 +185,9 @@ def build_ffmpeg_capture_command(input_token: str, config: CaptureConfig):
         "-rtbufsize",
         "512M",
     ]
-    if config.input_width is not None and config.input_height is not None:
+    if allow_input_tuning and config.input_width is not None and config.input_height is not None:
         cmd.extend(["-video_size", f"{config.input_width}x{config.input_height}"])
-    if config.input_fps is not None:
+    if allow_input_tuning and config.input_fps is not None:
         cmd.extend(["-framerate", str(config.input_fps)])
 
     cmd.extend([

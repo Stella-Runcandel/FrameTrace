@@ -29,12 +29,15 @@ class DummyProcess:
 class DummyCapture:
     created = 0
 
-    def __init__(self, device_name, config, queue):
-        self.device_name = device_name
+    def __init__(self, input_token, config, frame_queue, allow_input_tuning=True, pipeline="monitoring"):
+        self.device_name = input_token
         self.config = config
-        self.queue = queue
+        self.queue = frame_queue
+        self.allow_input_tuning = allow_input_tuning
+        self.pipeline = pipeline
         self.process = DummyProcess()
         self.stop_calls = 0
+        self.last_error = None
         DummyCapture.created += 1
 
     def start(self):
@@ -43,13 +46,22 @@ class DummyCapture:
     def stop(self):
         self.stop_calls += 1
 
+    def is_alive(self):
+        return True
+
 
 def _reset_globals(monitor_service):
     monitor_service._GLOBAL_CAPTURE = None
     monitor_service._GLOBAL_QUEUE = None
-    monitor_service._GLOBAL_DEVICE = None
+    monitor_service._GLOBAL_INPUT_TOKEN = None
     monitor_service._GLOBAL_CONFIG = None
-    monitor_service._GLOBAL_CAPTURE_USERS = 0
+    monitor_service._GLOBAL_USERS = 0
+    monitor_service._PREVIEW_CAPTURE = None
+    monitor_service._PREVIEW_QUEUE = None
+    monitor_service._PREVIEW_INPUT_TOKEN = None
+    monitor_service._PREVIEW_CONFIG = None
+    monitor_service._PREVIEW_PAUSED_FOR_MONITORING = False
+    monitor_service._PREVIEW_LAST_RESTART_AT = 0.0
 
 
 @unittest.skipUnless(CV2_AVAILABLE, "OpenCV unavailable in test environment")
@@ -70,26 +82,26 @@ class MonitorCaptureTests(unittest.TestCase):
         """Ensure global capture is stopped only after last release."""
         config = CaptureConfig(width=1280, height=720, fps=30)
         with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
-            cap1, _ = self.monitor_service._ensure_global_capture("camera-1", config)
-            cap2, _ = self.monitor_service._ensure_global_capture("camera-1", config)
+            cap1, _ = self.monitor_service._ensure_global_capture("camera-1", config, allow_input_tuning=False)
+            cap2, _ = self.monitor_service._ensure_global_capture("camera-1", config, allow_input_tuning=False)
             self.assertIs(cap1, cap2)
-            self.assertEqual(self.monitor_service._GLOBAL_CAPTURE_USERS, 2)
+            self.assertEqual(self.monitor_service._GLOBAL_USERS, 2)
 
             self.monitor_service._release_global_capture()
-            self.assertEqual(self.monitor_service._GLOBAL_CAPTURE_USERS, 1)
+            self.assertEqual(self.monitor_service._GLOBAL_USERS, 1)
             self.assertEqual(cap1.stop_calls, 0)
 
             self.monitor_service._release_global_capture()
-            self.assertEqual(self.monitor_service._GLOBAL_CAPTURE_USERS, 0)
+            self.assertEqual(self.monitor_service._GLOBAL_USERS, 0)
             self.assertEqual(cap1.stop_calls, 1)
 
     def test_start_stop_start_creates_new_capture(self):
         """Ensure new capture starts after all users release."""
         config = CaptureConfig(width=1280, height=720, fps=30)
         with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
-            cap1, _ = self.monitor_service._ensure_global_capture("camera-1", config)
+            cap1, _ = self.monitor_service._ensure_global_capture("camera-1", config, allow_input_tuning=False)
             self.monitor_service._release_global_capture()
-            cap2, _ = self.monitor_service._ensure_global_capture("camera-1", config)
+            cap2, _ = self.monitor_service._ensure_global_capture("camera-1", config, allow_input_tuning=False)
             self.assertIsNot(cap1, cap2)
             self.assertEqual(DummyCapture.created, 2)
 
@@ -113,3 +125,30 @@ class MonitorCaptureTests(unittest.TestCase):
         latest = self.monitor_service.get_latest_global_frame()
         self.assertEqual(latest, (2.0, b"b"))
         self.assertEqual(queue.size(), 2)
+
+    def test_preview_same_config_does_not_restart(self):
+        config = CaptureConfig(width=1280, height=720, fps=30)
+        with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
+            ok1, _ = self.monitor_service._ensure_preview_capture("camera-1", config, allow_input_tuning=False)
+            ok2, _ = self.monitor_service._ensure_preview_capture("camera-1", config, allow_input_tuning=False)
+            self.assertTrue(ok1)
+            self.assertTrue(ok2)
+            self.assertEqual(DummyCapture.created, 1)
+
+    def test_preview_restart_is_debounced(self):
+        config1 = CaptureConfig(width=1280, height=720, fps=30)
+        config2 = CaptureConfig(width=640, height=480, fps=30)
+        with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
+            ok1, _ = self.monitor_service._ensure_preview_capture("camera-1", config1, allow_input_tuning=False)
+            ok2, reason = self.monitor_service._ensure_preview_capture("camera-1", config2, allow_input_tuning=False)
+            self.assertTrue(ok1)
+            self.assertFalse(ok2)
+            self.assertEqual(reason, "Preview restart debounced")
+
+    def test_preview_pause_blocks_restart(self):
+        config = CaptureConfig(width=1280, height=720, fps=30)
+        with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
+            self.monitor_service.pause_preview_for_monitoring()
+            ok, reason = self.monitor_service._ensure_preview_capture("camera-1", config, allow_input_tuning=False)
+            self.assertFalse(ok)
+            self.assertEqual(reason, "Preview paused while monitoring is active")

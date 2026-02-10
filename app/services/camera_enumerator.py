@@ -1,4 +1,4 @@
-"""FFmpeg-first camera enumeration with layered Windows fallbacks."""
+"""FFmpeg-first camera enumeration."""
 from __future__ import annotations
 
 import json
@@ -157,72 +157,25 @@ def _names_to_camera_devices(names: Iterable[str], backend: str) -> list[CameraD
 
 
 def _enumerate_dshow(ffmpeg_path: str) -> list[str]:
-    commands = [
-        [ffmpeg_path, "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
-        [ffmpeg_path, "-loglevel", "verbose", "-f", "dshow", "-list_devices", "true", "-i", "dummy"],
-    ]
-    collected: list[str] = []
-    for index, cmd in enumerate(commands, start=1):
-        try:
-            result = _run_ffmpeg(cmd)
-        except Exception:
-            LOG.exception("[CAM_ENUM] dshow ffmpeg invocation failed")
-            append_camera_debug_log("CAM_ENUM_DSHOW_ERROR", f"cmd={cmd}")
-            continue
-        append_camera_debug_log(f"CAM_ENUM_DSHOW_CMD_{index}", " ".join(cmd))
-        append_camera_debug_log(f"CAM_ENUM_DSHOW_STDERR_{index}", result.stderr or "")
-        append_camera_debug_log(f"CAM_ENUM_DSHOW_STDOUT_{index}", result.stdout or "")
-        LOG.info("[CAM_ENUM] dshow cmd #%s exit=%s cmd=%s", index, result.returncode, cmd)
-        parsed = _parse_dshow_video_devices(result.stderr or "")
-        append_camera_debug_log(f"CAM_ENUM_PARSED_DSHOW_{index}", json.dumps(parsed, ensure_ascii=False, indent=2))
-        if parsed:
-            collected.extend(parsed)
-            break
-    return collected
-
-
-def _probe_opencv_indices(max_index: int = 12) -> list[str]:
+    cmd = [ffmpeg_path, "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"]
     try:
-        import cv2
+        result = _run_ffmpeg(cmd)
     except Exception:
+        LOG.exception("[CAM_ENUM] dshow ffmpeg invocation failed")
         return []
-
-    found: list[str] = []
-    for index in range(max_index):
-        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-        try:
-            if cap is not None and cap.isOpened():
-                found.append(f"OpenCV Camera {index}")
-        finally:
-            if cap is not None:
-                cap.release()
-    append_camera_debug_log("CAM_ENUM_OPENCV", json.dumps(found, indent=2))
-    return found
+    parsed = _parse_dshow_video_devices(result.stderr or "")
+    LOG.info("[CAM_ENUM] dshow list_devices discovered %s camera(s)", len(parsed))
+    return parsed
 
 
 def enumerate_video_devices(ffmpeg_path: str = "ffmpeg") -> list[CameraDevice]:
-    """Enumerate camera devices without opening camera streams.
-
-    Windows order: dshow -> dshow verbose -> OpenCV.
-    """
+    """Enumerate camera devices without opening camera streams."""
     system = platform.system()
     try:
         if system == "Windows":
             dshow_names = _enumerate_dshow(ffmpeg_path)
             parsed = _dedupe(_reject_invalid_windows_names(dshow_names))
-            if parsed:
-                devices = _names_to_camera_devices(parsed, backend="dshow")
-                append_camera_debug_log("CAM_ENUM_FINAL", json.dumps([d.__dict__ for d in devices], ensure_ascii=False, indent=2))
-                return devices
-
-            opencv_names = _probe_opencv_indices()
-            if opencv_names:
-                devices = _names_to_camera_devices(_dedupe(opencv_names), backend="opencv")
-                append_camera_debug_log("CAM_ENUM_FINAL", json.dumps([d.__dict__ for d in devices], ensure_ascii=False, indent=2))
-                return devices
-
-            append_camera_debug_log("CAM_ENUM_FINAL", json.dumps([], ensure_ascii=False, indent=2))
-            return []
+            return _names_to_camera_devices(parsed, backend="dshow")
 
         if system == "Darwin":
             cmd = [ffmpeg_path, "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""]

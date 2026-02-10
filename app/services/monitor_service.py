@@ -2,10 +2,8 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import time
-from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -14,11 +12,9 @@ from app.app_state import app_state
 from app.services.ffmpeg_capture_supervisor import LogLevel
 from app.services.ffmpeg_tools import (
     CaptureConfig,
-    CaptureInputCandidate,
     FfmpegNotFoundError,
     build_capture_input_candidates,
     list_camera_devices,
-    verify_windows_dshow_device_token,
 )
 from app.services.frame_bus import FrameQueue
 from app.services.frame_consumers import DetectionConsumer, MetricsConsumer, SnapshotConsumer
@@ -42,67 +38,30 @@ _GLOBAL_USERS = 0
 _GLOBAL_INPUT_TOKEN: str | None = None
 _GLOBAL_CONFIG: CaptureConfig | None = None
 
-
-def _dedupe_capture_configs(configs: list[CaptureConfig]) -> list[CaptureConfig]:
-    deduped: list[CaptureConfig] = []
-    seen: set[tuple[int, int, int, int | None, int | None, int | None]] = set()
-    for cfg in configs:
-        key = (cfg.width, cfg.height, cfg.fps, cfg.input_width, cfg.input_height, cfg.input_fps)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(cfg)
-    return deduped
+_PREVIEW_LOCK = threading.Lock()
+_PREVIEW_CAPTURE: FfmpegCapture | None = None
+_PREVIEW_QUEUE: FrameQueue | None = None
+_PREVIEW_INPUT_TOKEN: str | None = None
+_PREVIEW_CONFIG: CaptureConfig | None = None
+_PREVIEW_PAUSED_FOR_MONITORING = False
+_PREVIEW_LAST_RESTART_AT = 0.0
+_PREVIEW_RESTART_DEBOUNCE_SEC = 0.5
 
 
-def _build_capture_config_ladder(width: int, height: int, fps: int, *, is_virtual: bool) -> list[CaptureConfig]:
+def _build_monitoring_config_ladder(width: int, height: int, fps: int, *, is_virtual: bool) -> list[CaptureConfig]:
     requested = CaptureConfig(width=width, height=height, fps=fps, input_width=width, input_height=height, input_fps=fps, label="requested")
-    implicit_defaults = CaptureConfig(width=width, height=height, fps=fps, input_width=None, input_height=None, input_fps=None, label="implicit-default")
-    fallbacks = [
-        CaptureConfig(width=width, height=height, fps=fps, input_width=None, input_height=None, input_fps=None, label="fallback-no-size-no-fps"),
-        CaptureConfig(width=width, height=height, fps=fps, input_width=1280, input_height=720, input_fps=30, label="fallback-1280x720@30"),
-        CaptureConfig(width=width, height=height, fps=fps, input_width=1280, input_height=720, input_fps=25, label="fallback-1280x720@25"),
-        CaptureConfig(width=width, height=height, fps=fps, input_width=640, input_height=480, input_fps=30, label="fallback-640x480@30"),
-        CaptureConfig(width=width, height=height, fps=fps, input_width=None, input_height=None, input_fps=None, label="fallback-camera-default"),
-    ]
-    ordered = [requested, *fallbacks] if is_virtual else [implicit_defaults, requested, *fallbacks]
-    return _dedupe_capture_configs(ordered)
+    implicit = CaptureConfig(width=width, height=height, fps=fps, input_width=None, input_height=None, input_fps=None, label="implicit-default")
+    if is_virtual:
+        return [requested, implicit]
+    return [implicit]
 
 
-def _probe_physical_camera(candidate: CaptureInputCandidate, config: CaptureConfig) -> bool:
-    logging.info("[CAM_CAPTURE] preflight probe using implicit defaults for token=%r", candidate.token)
-    _camera_debug_dump(
-        "CAM_CAPTURE_PROBE",
-        f"token={candidate.token}\nreason={candidate.reason}\nconfig_label={config.label}\ninput_size={config.input_width}x{config.input_height}\ninput_fps={config.input_fps}",
-    )
-    probe_capture = None
-    try:
-        probe_capture, _ = _ensure_global_capture(candidate.token, config)
-        time.sleep(0.4)
-        if probe_capture.is_alive():
-            logging.info("[CAM_CAPTURE] preflight probe succeeded for token=%r", candidate.token)
-            return True
-        logging.warning("[CAM_CAPTURE] preflight probe failed for token=%r last_error=%s", candidate.token, probe_capture.last_error)
-        return False
-    finally:
-        _release_global_capture(clear_queue=True)
-
-
-def _camera_debug_enabled() -> bool:
-    return os.environ.get("CAMERA_DEBUG", "").strip() in {"1", "true", "TRUE", "yes", "on"}
-
-
-def _camera_debug_dump(section: str, payload: str) -> None:
-    if not _camera_debug_enabled():
-        return
-    logs_dir = Path("Data") / "Logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    path = logs_dir / "camera_debug.log"
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(f"[{section}]\n{payload}\n\n")
-
-
-def _ensure_global_capture(input_token: str, config: CaptureConfig) -> tuple[FfmpegCapture, FrameQueue]:
+def _ensure_global_capture(
+    input_token: str,
+    config: CaptureConfig,
+    *,
+    allow_input_tuning: bool,
+) -> tuple[FfmpegCapture, FrameQueue]:
     global _GLOBAL_CAPTURE, _GLOBAL_QUEUE, _GLOBAL_USERS, _GLOBAL_INPUT_TOKEN, _GLOBAL_CONFIG
     with _GLOBAL_LOCK:
         if _GLOBAL_CAPTURE and _GLOBAL_CAPTURE.is_alive():
@@ -119,7 +78,13 @@ def _ensure_global_capture(input_token: str, config: CaptureConfig) -> tuple[Ffm
             _GLOBAL_USERS = 0
 
         _GLOBAL_QUEUE = FrameQueue(maxlen=8)
-        _GLOBAL_CAPTURE = FfmpegCapture(input_token=input_token, config=config, frame_queue=_GLOBAL_QUEUE)
+        _GLOBAL_CAPTURE = FfmpegCapture(
+            input_token=input_token,
+            config=config,
+            frame_queue=_GLOBAL_QUEUE,
+            allow_input_tuning=allow_input_tuning,
+            pipeline="monitoring",
+        )
         _GLOBAL_CAPTURE.start()
         _GLOBAL_INPUT_TOKEN = input_token
         _GLOBAL_CONFIG = config
@@ -145,6 +110,105 @@ def _release_global_capture(clear_queue: bool = False) -> None:
         _GLOBAL_CONFIG = None
 
 
+def _ensure_preview_capture(input_token: str, config: CaptureConfig, *, allow_input_tuning: bool) -> tuple[bool, str | None]:
+    global _PREVIEW_CAPTURE, _PREVIEW_QUEUE, _PREVIEW_INPUT_TOKEN, _PREVIEW_CONFIG, _PREVIEW_LAST_RESTART_AT
+    with _PREVIEW_LOCK:
+        if _PREVIEW_PAUSED_FOR_MONITORING:
+            return False, "Preview paused while monitoring is active"
+
+        if _PREVIEW_CAPTURE and _PREVIEW_CAPTURE.is_alive() and _PREVIEW_INPUT_TOKEN == input_token and _PREVIEW_CONFIG == config:
+            return True, None
+
+        now = time.time()
+        if now - _PREVIEW_LAST_RESTART_AT < _PREVIEW_RESTART_DEBOUNCE_SEC:
+            return False, "Preview restart debounced"
+
+        if _PREVIEW_CAPTURE:
+            _PREVIEW_CAPTURE.stop()
+        if _PREVIEW_QUEUE:
+            _PREVIEW_QUEUE.clear(stale=True)
+
+        _PREVIEW_LAST_RESTART_AT = now
+        _PREVIEW_QUEUE = FrameQueue(maxlen=4)
+        _PREVIEW_CAPTURE = FfmpegCapture(
+            input_token=input_token,
+            config=config,
+            frame_queue=_PREVIEW_QUEUE,
+            allow_input_tuning=allow_input_tuning,
+            pipeline="preview",
+        )
+        _PREVIEW_CAPTURE.start()
+        _PREVIEW_INPUT_TOKEN = input_token
+        _PREVIEW_CONFIG = config
+        return True, None
+
+
+def release_preview_capture() -> None:
+    global _PREVIEW_CAPTURE, _PREVIEW_QUEUE, _PREVIEW_INPUT_TOKEN, _PREVIEW_CONFIG, _PREVIEW_LAST_RESTART_AT
+    with _PREVIEW_LOCK:
+        if _PREVIEW_CAPTURE:
+            _PREVIEW_CAPTURE.stop()
+        if _PREVIEW_QUEUE:
+            _PREVIEW_QUEUE.clear(stale=True)
+        _PREVIEW_CAPTURE = None
+        _PREVIEW_QUEUE = None
+        _PREVIEW_INPUT_TOKEN = None
+        _PREVIEW_CONFIG = None
+        _PREVIEW_LAST_RESTART_AT = time.time()
+
+
+def pause_preview_for_monitoring() -> None:
+    global _PREVIEW_PAUSED_FOR_MONITORING
+    with _PREVIEW_LOCK:
+        _PREVIEW_PAUSED_FOR_MONITORING = True
+    logging.info("[CAM_PREVIEW] pause for monitoring")
+    release_preview_capture()
+
+
+def resume_preview_after_monitoring() -> None:
+    global _PREVIEW_PAUSED_FOR_MONITORING
+    with _PREVIEW_LOCK:
+        _PREVIEW_PAUSED_FOR_MONITORING = False
+    logging.info("[CAM_PREVIEW] resume allowed")
+
+
+def start_preview_for_selected_camera(selected_display_name: str, width: int, height: int, fps: int) -> tuple[bool, str | None]:
+    candidates = build_capture_input_candidates(selected_display_name)
+    if not candidates:
+        release_preview_capture()
+        return False, "Preview failed: selected camera not found"
+
+    candidate = candidates[0]
+    config = _build_monitoring_config_ladder(width, height, fps, is_virtual=candidate.is_virtual)[0]
+    try:
+        started, skip_reason = _ensure_preview_capture(candidate.token, config, allow_input_tuning=candidate.is_virtual)
+    except FfmpegNotFoundError as exc:
+        return False, f"Preview failed: FFmpeg not found ({exc})"
+    except Exception as exc:
+        logging.warning("[CAM_PREVIEW] failed to start", exc_info=True)
+        return False, f"Preview failed: {exc}"
+
+    if not started:
+        return False, skip_reason
+
+    time.sleep(0.15)
+    with _PREVIEW_LOCK:
+        if _PREVIEW_CAPTURE and _PREVIEW_CAPTURE.is_alive():
+            return True, None
+        reason = _PREVIEW_CAPTURE.last_error if _PREVIEW_CAPTURE else "ffmpeg exited"
+    return False, f"Preview failed: {reason or 'ffmpeg exited'}"
+
+
+def get_latest_preview_frame():
+    with _PREVIEW_LOCK:
+        if not _PREVIEW_QUEUE:
+            return None
+        packet = _PREVIEW_QUEUE.peek_latest()
+        if packet is None:
+            return None
+        return (packet.timestamp, packet.payload)
+
+
 def get_latest_global_frame():
     with _GLOBAL_LOCK:
         if not _GLOBAL_QUEUE:
@@ -156,6 +220,9 @@ def get_latest_global_frame():
 
 
 def freeze_latest_global_frame():
+    frame = get_latest_preview_frame() or get_latest_global_frame()
+    if frame is not None:
+        return frame
     with _GLOBAL_LOCK:
         if not _GLOBAL_QUEUE:
             return None
@@ -197,6 +264,9 @@ class MonitorService(QThread):
     def run(self):
         if not self._set_state(MonitoringState.STARTING.value, self._state.request_start):
             return
+
+        failed = False
+        pause_preview_for_monitoring()
         try:
             self._stop_event.clear()
             self._capture = None
@@ -205,194 +275,125 @@ class MonitorService(QThread):
             if not profile:
                 self.status.emit("No profile selected")
                 self._state.mark_failed()
+                failed = True
                 return
 
             get_profile_dirs(profile)
             if not app_state.selected_reference:
                 self.status.emit("No reference selected")
                 self._state.mark_failed()
+                failed = True
                 return
 
             selected_display_name = get_profile_camera_device(profile)
             if not selected_display_name:
                 self.status.emit("No camera selected")
                 self._state.mark_failed()
+                failed = True
                 return
 
-            enumerated_devices = list_camera_devices(force_refresh=True)
-            enumerated_names = [d.display_name for d in enumerated_devices]
-            logging.info(
-                "[CAM_UI] profile=%r stored camera selection=%r available devices=%s",
-                profile,
-                selected_display_name,
-                enumerated_names,
-            )
-            _camera_debug_dump("CAMERA_SELECTION", f"profile={profile}\nstored={selected_display_name}\navailable={enumerated_names}")
+            enumerated_names = [d.display_name for d in list_camera_devices(force_refresh=True)]
+            logging.info("[CAM_CAPTURE] selected camera=%r available=%s", selected_display_name, enumerated_names)
             input_candidates = build_capture_input_candidates(selected_display_name)
             if not input_candidates:
-                logging.warning(
-                    "[CAM_CAPTURE] selected camera %r missing from current enumeration; invalidating profile field",
-                    selected_display_name,
-                )
                 set_profile_camera_device(profile, "")
-                summary = f"Capture blocked: stored camera {selected_display_name!r} is not in current FFmpeg enumeration."
-                _camera_debug_dump("FAIL_SUMMARY", summary)
-                self.status.emit(f"Camera not found: {selected_display_name}. Re-select camera and retry.")
+                self.status.emit(f"Monitoring failed: camera not found ({selected_display_name})")
                 self._state.mark_failed()
+                failed = True
                 return
 
+            candidate = input_candidates[0]
             width, height = get_profile_frame_size(profile)
             if not width or not height:
                 width, height = get_profile_frame_size_fallback()
             fps = get_profile_fps(profile)
 
-            force_start = os.environ.get("CAMERA_FORCE_START", "").strip() in {"1", "true", "TRUE", "yes", "on"}
-            verified_candidates = []
-            for candidate in input_candidates:
-                ok, details = verify_windows_dshow_device_token(candidate.token)
-                _camera_debug_dump("CAM_VERIFY_RESULT", f"token={candidate.token}\nreason={candidate.reason}\nok={ok}\ndetails={details}")
-                if ok:
-                    verified_candidates.append(candidate)
-            if not verified_candidates and not force_start:
-                self.status.emit("Selected camera appears temporarily unavailable. Retry or set CAMERA_FORCE_START=1.")
-                self._state.mark_failed()
-                return
-
-            attempts = verified_candidates or input_candidates
+            configs = _build_monitoring_config_ladder(width, height, fps, is_virtual=candidate.is_virtual)
+            max_retries = 3
             queue = None
-            self._capture = None
-            selected_config = None
-            for idx, candidate in enumerate(attempts, start=1):
-                logging.info(
-                    "[CAM_CAPTURE] input attempt %s using token=%r reason=%s is_virtual=%s",
-                    idx,
+            failure_reason = "unknown capture failure"
+
+            for attempt in range(1, max_retries + 1):
+                if self._stop_event.is_set():
+                    break
+                config = configs[min(attempt - 1, len(configs) - 1)]
+                if attempt > 1:
+                    self.status.emit(f"Monitoring retrying ({attempt}/{max_retries})")
+                logging.info("[CAM_CAPTURE] start attempt=%s/%s camera=%r config=%s", attempt, max_retries, candidate.token, config.label)
+
+                cap, queue = _ensure_global_capture(
                     candidate.token,
-                    candidate.reason,
-                    candidate.is_virtual,
+                    config,
+                    allow_input_tuning=candidate.is_virtual,
                 )
-                _camera_debug_dump(
-                    "CAM_CAPTURE_ATTEMPT",
-                    f"attempt={idx}\ntoken={candidate.token}\nreason={candidate.reason}\nis_virtual={candidate.is_virtual}",
-                )
+                self._capture = cap
+                self._capture_acquired = True
 
-                if not candidate.is_virtual:
-                    probe_ok = _probe_physical_camera(
-                        candidate,
-                        CaptureConfig(
-                            width=width,
-                            height=height,
-                            fps=fps,
-                            input_width=None,
-                            input_height=None,
-                            input_fps=None,
-                            label="preflight-no-size-no-fps",
-                        ),
-                    )
-                    if not probe_ok:
-                        _camera_debug_dump("CAM_CAPTURE_PROBE_FAIL", f"attempt={idx}\ntoken={candidate.token}")
-
-                config_ladder = _build_capture_config_ladder(width, height, fps, is_virtual=candidate.is_virtual)
-                for cfg_idx, candidate_config in enumerate(config_ladder, start=1):
-                    logging.info(
-                        "[CAM_CAPTURE] input attempt %s config attempt %s label=%s input_size=%sx%s input_fps=%s",
-                        idx,
-                        cfg_idx,
-                        candidate_config.label,
-                        candidate_config.input_width,
-                        candidate_config.input_height,
-                        candidate_config.input_fps,
-                    )
-                    _camera_debug_dump(
-                        "CAM_CAPTURE_CONFIG_ATTEMPT",
-                        "\n".join(
-                            [
-                                f"input_attempt={idx}",
-                                f"config_attempt={cfg_idx}",
-                                f"token={candidate.token}",
-                                f"config_label={candidate_config.label}",
-                                f"input_size={candidate_config.input_width}x{candidate_config.input_height}",
-                                f"input_fps={candidate_config.input_fps}",
-                            ]
-                        ),
-                    )
-
-                    cap, queue = _ensure_global_capture(candidate.token, candidate_config)
-                    self._capture = cap
-                    self._capture_acquired = True
-                    time.sleep(0.6)
+                grace_started = time.time()
+                while not self._stop_event.is_set() and time.time() - grace_started < 2.5:
+                    self._drain_ffmpeg_logs()
                     if cap.is_alive():
-                        selected_config = candidate_config
-                        if candidate_config.label != "requested":
-                            self.status.emit(
-                                f"Camera fallback active: {candidate_config.label.replace('fallback-', '').replace('-', ' ')}"
-                            )
-                        logging.info(
-                            "[CAM_CAPTURE] capture succeeded with token=%r config_label=%s",
-                            candidate.token,
-                            candidate_config.label,
-                        )
-                        _camera_debug_dump(
-                            "CAM_CAPTURE_SUCCESS",
-                            f"token={candidate.token}\nconfig_label={candidate_config.label}\ninput_size={candidate_config.input_width}x{candidate_config.input_height}\ninput_fps={candidate_config.input_fps}",
-                        )
-                        break
+                        time.sleep(0.1)
+                        continue
+                    break
 
-                    logging.warning(
-                        "[CAM_CAPTURE] config attempt failed token=%r config_label=%s last_error=%s",
-                        candidate.token,
-                        candidate_config.label,
-                        cap.last_error,
-                    )
-                    _camera_debug_dump(
-                        "CAM_CAPTURE_ATTEMPT_FAIL",
-                        f"input_attempt={idx}\nconfig_attempt={cfg_idx}\ntoken={candidate.token}\nconfig_label={candidate_config.label}\nlast_error={cap.last_error}",
-                    )
+                if not cap.is_alive():
+                    failure_reason = cap.last_error or "ffmpeg exited during startup"
+                    logging.warning("[CAM_CAPTURE] retry camera=%r reason=%s", candidate.token, failure_reason)
                     _release_global_capture(clear_queue=True)
                     self._capture_acquired = False
                     self._capture = None
+                    continue
 
-                if self._capture and self._capture.is_alive():
+                self._state.mark_running()
+                self.state_changed.emit(MonitoringState.RUNNING.value)
+                app_state.monitoring_active = True
+                self.running = True
+                self.status.emit("Monitoring...")
+
+                self._processing_thread = threading.Thread(
+                    target=self._processing_loop,
+                    args=(profile, queue, width, height),
+                    daemon=True,
+                )
+                self._processing_thread.start()
+
+                while not self._stop_event.is_set() and cap.is_alive():
+                    self._drain_ffmpeg_logs()
+                    time.sleep(0.15)
+
+                if self._stop_event.is_set():
                     break
-            if not self._capture or not self._capture.is_alive() or queue is None:
-                self.status.emit("FFmpeg capture failed. Retry monitoring or reselect camera.")
-                self._state.mark_failed()
+
+                failure_reason = cap.last_error or "ffmpeg exited unexpectedly"
+                logging.warning("[CAM_CAPTURE] retry camera=%r reason=%s", candidate.token, failure_reason)
+                _release_global_capture(clear_queue=True)
+                self._capture_acquired = False
+                self._capture = None
+
+            if self._stop_event.is_set():
                 return
-            if selected_config and selected_config.label != "requested":
-                logging.info("[CAM_CAPTURE] final successful config=%s", selected_config.label)
 
-            self._state.mark_running()
-            self.state_changed.emit(MonitoringState.RUNNING.value)
-            app_state.monitoring_active = True
-            self.running = True
-            self.status.emit("Monitoring...")
+            if not self.running:
+                self.status.emit(f"Monitoring failed: {failure_reason}")
+                self._state.mark_failed()
+                failed = True
 
-            self._processing_thread = threading.Thread(
-                target=self._processing_loop,
-                args=(profile, queue, width, height),
-                daemon=True,
-            )
-            self._processing_thread.start()
-
-            while not self._stop_event.is_set():
-                if self._capture and not self._capture.is_alive():
-                    self.status.emit("FFmpeg exited unexpectedly")
-                    _camera_debug_dump("FAIL_SUMMARY", "Capture failed: FFmpeg process exited unexpectedly. Check CAM_CAPTURE stderr lines above.")
-                    self._state.mark_failed()
-                    break
-                self._drain_ffmpeg_logs()
-                time.sleep(0.15)
         except FfmpegNotFoundError as exc:
-            self.status.emit(f"FFmpeg not found ({exc})")
+            self.status.emit(f"Monitoring failed: FFmpeg not found ({exc})")
             self._state.mark_failed()
+            failed = True
         except Exception as exc:
             logging.error("Monitoring crash", exc_info=True)
-            self.status.emit(f"Monitoring failure ({exc})")
+            self.status.emit(f"Monitoring failed: {exc}")
             try:
                 self._state.mark_failed()
             except InvalidTransition:
                 pass
+            failed = True
         finally:
-            self.stop(clear_queue=self._state.state == MonitoringState.FAILED)
+            self.stop(clear_queue=failed, emit_status=not failed)
+            resume_preview_after_monitoring()
 
     def _drain_ffmpeg_logs(self):
         if not self._capture:
@@ -401,7 +402,6 @@ class MonitorService(QThread):
             event = self._capture.log_events.get_nowait()
             if event.level == LogLevel.ERROR:
                 self.status.emit(f"FFmpeg error: {event.message}")
-                _camera_debug_dump("FFMPEG_STDERR", event.message)
 
     def _processing_loop(self, profile, queue: FrameQueue, width: int, height: int):
         processed = 0
@@ -458,7 +458,7 @@ class MonitorService(QThread):
                 processed = 0
                 start = now
 
-    def stop(self, clear_queue: bool = False):
+    def stop(self, clear_queue: bool = False, *, emit_status: bool = True):
         if self._state.state in (MonitoringState.IDLE, MonitoringState.STOPPING):
             return
 
@@ -484,4 +484,5 @@ class MonitorService(QThread):
         except InvalidTransition:
             self._state = MonitoringStateMachine()
         self.state_changed.emit(MonitoringState.IDLE.value)
-        self.status.emit("Stopped")
+        if emit_status:
+            self.status.emit("Stopped")
