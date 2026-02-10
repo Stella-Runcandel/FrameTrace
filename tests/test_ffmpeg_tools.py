@@ -71,15 +71,25 @@ class FfmpegToolsTests(unittest.TestCase):
         "app.services.ffmpeg_tools.list_camera_devices",
         return_value=[CameraDevice(display_name="OBS Virtual Camera", ffmpeg_token="video=OBS Virtual Camera", backend="dshow", is_virtual=True)],
     )
-    @patch("app.services.ffmpeg_tools.platform.system", return_value="Windows")
-    def test_build_capture_input_candidates_windows_variants(self, _platform_mock, _mock_list):
+    def test_build_capture_input_candidates_uses_single_enumerated_token(self, _mock_list):
         candidates = ffmpeg_tools.build_capture_input_candidates("OBS Virtual Camera")
-        tokens = [c.token for c in candidates]
-        self.assertEqual(tokens[0], "video=OBS Virtual Camera")
-        self.assertIn('video="OBS Virtual Camera"', tokens)
-        self.assertIn("OBS Virtual Camera", tokens)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].token, "video=OBS Virtual Camera")
 
 
+    def test_build_ffmpeg_capture_command_skips_input_tuning_when_disabled(self):
+        config = ffmpeg_tools.CaptureConfig(
+            width=1280,
+            height=720,
+            fps=30,
+            input_width=1920,
+            input_height=1080,
+            input_fps=60,
+        )
+        with patch("app.services.ffmpeg_tools.resolve_ffmpeg_path", return_value="ffmpeg"):
+            cmd = ffmpeg_tools.build_ffmpeg_capture_command("video=HD Webcam", config, allow_input_tuning=False)
+        self.assertNotIn("-video_size", cmd)
+        self.assertNotIn("-framerate", cmd)
 
     def test_build_ffmpeg_capture_command_allows_implicit_input_defaults(self):
         config = ffmpeg_tools.CaptureConfig(

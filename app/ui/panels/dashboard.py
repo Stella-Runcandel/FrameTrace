@@ -23,6 +23,10 @@ from app.services.monitor_service import (
     MonitorService,
     freeze_latest_global_frame,
     get_latest_global_frame,
+    get_latest_preview_frame,
+    pause_preview_for_monitoring,
+    release_preview_capture,
+    start_preview_for_selected_camera,
 )
 from app.ui.theme import Styles
 from app.ui.widget_utils import disable_button_focus_rect, disable_widget_interaction, make_preview_label
@@ -72,7 +76,7 @@ class DashboardPanel(QWidget):
         self.camera_label = QLabel("Camera Device")
         self.fps_label = QLabel("Target FPS")
         self.camera_preview_title = QLabel("Camera Preview")
-        self.camera_preview_hint = QLabel("Preview reads from monitoring frame queue")
+        self.camera_preview_hint = QLabel("Preview runs on a dedicated FFmpeg pipeline")
 
         for label in [
             self.profile_label,
@@ -231,6 +235,7 @@ class DashboardPanel(QWidget):
 
         self.refresh_camera_devices()
         self.refresh()
+        self.ensure_preview_capture()
 
     def select_profile(self):
         profiles = list_profiles()
@@ -260,6 +265,7 @@ class DashboardPanel(QWidget):
             self.status_label.setText("Select a reference first")
             return
         self._frozen_frame = None
+        pause_preview_for_monitoring()
         self.refresh_camera_devices()
         self.monitor_controller.start()
         self.status_label.setText(f"Monitoring started ({app_state.selected_reference})")
@@ -284,10 +290,13 @@ class DashboardPanel(QWidget):
 
     def unfreeze_frame(self):
         self._frozen_frame = None
+        if not app_state.monitoring_active:
+            self.ensure_preview_capture()
         self.status_label.setText("Live preview")
 
     def closeEvent(self, event):
         self.preview_timer.stop()
+        release_preview_capture()
         super().closeEvent(event)
 
     def showEvent(self, event):
@@ -296,6 +305,7 @@ class DashboardPanel(QWidget):
 
     def close(self):
         self.preview_timer.stop()
+        release_preview_capture()
         self.monitor_controller.stop()
 
     def refresh(self):
@@ -405,6 +415,8 @@ class DashboardPanel(QWidget):
         clean_name = str(device_name)
         logging.info("[CAM_UI] camera changed index=%s display=%r stored=%r", index, display_text, clean_name)
         set_profile_camera_device(app_state.active_profile, clean_name)
+        release_preview_capture()
+        self.ensure_preview_capture()
 
     def update_profile_preview(self):
         if not app_state.active_profile:
@@ -464,12 +476,38 @@ class DashboardPanel(QWidget):
         self._cached_available_camera_devices = devices
         logging.info("[CAM_UI] refresh camera devices -> %s", self._cached_available_camera_devices)
         self.update_camera_devices()
+        if not app_state.monitoring_active:
+            self.ensure_preview_capture()
+
+    def ensure_preview_capture(self):
+        if app_state.monitoring_active:
+            return
+
+        profile = app_state.active_profile
+        if not profile:
+            release_preview_capture()
+            return
+
+        selected_camera = get_profile_camera_device(profile)
+        if not selected_camera:
+            release_preview_capture()
+            return
+
+        width, height = get_profile_frame_size(profile)
+        if not width or not height:
+            width, height = get_profile_frame_size_fallback()
+        fps = get_profile_fps(profile)
+        ok, message = start_preview_for_selected_camera(selected_camera, width, height, fps)
+        if not ok and message and "debounced" not in message and "paused" not in message:
+            self.camera_preview.setPixmap(QPixmap())
+            self.camera_preview.setText(message)
+            self.status_label.setText(message)
 
     def update_camera_preview(self):
         if not self.isVisible():
             return
 
-        frame_item = self._frozen_frame or get_latest_global_frame()
+        frame_item = self._frozen_frame or get_latest_preview_frame() or get_latest_global_frame()
         if frame_item is None:
             self.camera_preview.setPixmap(QPixmap())
             self.camera_preview.setText("Camera preview unavailable")

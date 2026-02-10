@@ -1,6 +1,7 @@
 """Supervise FFmpeg capture process and publish raw frames to FrameQueue."""
 from __future__ import annotations
 
+import itertools
 import logging
 import queue
 import subprocess
@@ -9,7 +10,6 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-from app.services.camera_enumerator import append_camera_debug_log
 from app.services.ffmpeg_tools import CaptureConfig, FfmpegNotFoundError, build_ffmpeg_capture_command
 from app.services.frame_bus import FramePacket, FrameQueue
 
@@ -26,11 +26,25 @@ class FfmpegLogEvent:
     message: str
 
 
+_INSTANCE_IDS = itertools.count(1)
+
+
 class FfmpegCaptureSupervisor:
-    def __init__(self, input_token: str, config: CaptureConfig, frame_queue: FrameQueue):
+    def __init__(
+        self,
+        input_token: str,
+        config: CaptureConfig,
+        frame_queue: FrameQueue,
+        *,
+        allow_input_tuning: bool = True,
+        pipeline: str = "monitoring",
+    ):
         self.input_token = input_token
         self.config = config
+        self.allow_input_tuning = allow_input_tuning
         self.frame_queue = frame_queue
+        self.pipeline = pipeline
+        self.instance_id = next(_INSTANCE_IDS)
         self.process: subprocess.Popen | None = None
         self._stop = threading.Event()
         self._reader_thread: threading.Thread | None = None
@@ -40,9 +54,8 @@ class FfmpegCaptureSupervisor:
         self.last_error: str | None = None
 
     def start(self) -> None:
-        cmd = build_ffmpeg_capture_command(self.input_token, self.config)
-        logging.info("[CAM_CAPTURE] start ffmpeg with input token %r", self.input_token)
-        append_camera_debug_log("CAM_CAPTURE_START", f"input_token={self.input_token}\ncmd={cmd}")
+        cmd = build_ffmpeg_capture_command(self.input_token, self.config, allow_input_tuning=self.allow_input_tuning)
+        logging.info("[CAM_CAPTURE] start id=%s pipeline=%s camera=%r cmd=%s", self.instance_id, self.pipeline, self.input_token, cmd)
         try:
             self.process = subprocess.Popen(
                 cmd,
@@ -89,8 +102,6 @@ class FfmpegCaptureSupervisor:
                 continue
             level = self._classify_log(text)
             self._emit_log(level, text)
-            logging.info("[CAM_CAPTURE] ffmpeg stderr: %s", text)
-            append_camera_debug_log("CAM_CAPTURE_STDERR", text)
             if level == LogLevel.ERROR:
                 self.last_error = text
 
@@ -134,8 +145,7 @@ class FfmpegCaptureSupervisor:
         if self._stderr_thread:
             self._stderr_thread.join(timeout=timeout)
         if self.process:
-            logging.info("[CAM_CAPTURE] ffmpeg exit code: %s", self.process.returncode)
-            append_camera_debug_log("CAM_CAPTURE_EXIT", str(self.process.returncode))
+            logging.info("[CAM_CAPTURE] stop id=%s pipeline=%s camera=%r exit=%s", self.instance_id, self.pipeline, self.input_token, self.process.returncode)
 
     def is_alive(self) -> bool:
         return bool(self.process and self.process.poll() is None)
