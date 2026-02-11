@@ -176,6 +176,8 @@ def _ensure_preview_capture(input_token: str, config: CaptureConfig, *, allow_in
     with _PREVIEW_LOCK:
         if _PREVIEW_PAUSED_FOR_MONITORING:
             return False, "Preview paused while monitoring is active"
+        if _ACTIVE_OWNER_PIPELINE == "monitoring":
+            return False, "Camera is currently owned by monitoring"
 
         if _PREVIEW_CAPTURE and _PREVIEW_CAPTURE.is_alive() and _PREVIEW_INPUT_TOKEN == input_token and _PREVIEW_CONFIG == config:
             return True, None
@@ -199,7 +201,7 @@ def _ensure_preview_capture(input_token: str, config: CaptureConfig, *, allow_in
             _release_camera_owner("preview", input_token)
             return False, "Preview cooldown interrupted"
 
-        _PREVIEW_QUEUE = FrameQueue(maxlen=2)
+        _PREVIEW_QUEUE = FrameQueue(maxlen=5)
         _PREVIEW_CAPTURE = FfmpegCapture(
             input_token=input_token,
             config=config,
@@ -310,7 +312,7 @@ def start_preview_for_selected_camera(selected_display_name: str, width: int, he
         return False, "Preview failed: selected camera not found"
 
     candidate = candidates[0]
-    configs = _build_monitoring_config_ladder(width, height, min(10, fps), is_virtual=candidate.is_virtual)
+    configs = _build_monitoring_config_ladder(width, height, min(30, fps), is_virtual=candidate.is_virtual)
     attempts = min(_PREVIEW_MAX_RETRIES, len(configs))
     last_reason = "unknown preview failure"
 
@@ -571,8 +573,10 @@ class MonitorService(QThread):
         last_confidence = 0.0
         selected_reference = app_state.selected_reference
         last_detection_time = None
+        target_frame_time = 1.0 / max(1, self.config.fps)
 
         while not self._stop_event.is_set():
+            loop_started = time.time()
             pkt = queue.get(timeout=0.5)
             if pkt is None:
                 continue
@@ -619,6 +623,11 @@ class MonitorService(QThread):
                 )
                 processed = 0
                 start = now
+
+            elapsed = time.time() - loop_started
+            sleep_time = target_frame_time - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
     def stop(self, clear_queue: bool = False, *, emit_status: bool = True):
         if self._state.state in (MonitoringState.IDLE, MonitoringState.STOPPING):

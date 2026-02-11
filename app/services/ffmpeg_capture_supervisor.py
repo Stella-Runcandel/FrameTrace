@@ -63,7 +63,12 @@ class FfmpegCaptureSupervisor:
         self.last_error: str | None = None
 
     def start(self) -> None:
-        cmd = build_ffmpeg_capture_command(self.input_token, self.config, allow_input_tuning=self.allow_input_tuning)
+        cmd = build_ffmpeg_capture_command(
+            self.input_token,
+            self.config,
+            allow_input_tuning=self.allow_input_tuning,
+            pipeline=self.pipeline,
+        )
         logging.info("[CAM_CAPTURE] start id=%s pipeline=%s camera=%r cmd=%s", self.instance_id, self.pipeline, self.input_token, cmd)
         try:
             self.process = subprocess.Popen(
