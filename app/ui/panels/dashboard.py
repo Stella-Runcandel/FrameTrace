@@ -49,6 +49,9 @@ from core.profiles import (
 
 
 class DashboardPanel(QWidget):
+    MAX_PREVIEW_WIDTH = 640
+    MAX_PREVIEW_HEIGHT = 360
+
     STRICTNESS_OPTIONS = [
         ("Very Loose", 0.55),
         ("Loose", 0.65),
@@ -237,6 +240,8 @@ class DashboardPanel(QWidget):
 
         self._preview_failure_reason = "Camera preview unavailable"
         self._last_preview_timestamp = None
+        self._updating_camera_combo = False
+        self._preview_last_valid_frame_time = 0.0
         set_preview_live_enabled(False)
         self.refresh_camera_devices()
         self.refresh()
@@ -372,10 +377,12 @@ class DashboardPanel(QWidget):
 
     def update_camera_devices(self):
         profile = app_state.active_profile
+        self._updating_camera_combo = True
         self.camera_combo.blockSignals(True)
         self.camera_combo.clear()
         if not profile:
             self.camera_combo.blockSignals(False)
+            self._updating_camera_combo = False
             self.camera_combo.setEnabled(False)
             self.camera_refresh_btn.setEnabled(False)
             return
@@ -407,21 +414,27 @@ class DashboardPanel(QWidget):
             self.camera_combo.setEnabled(True)
 
         self.camera_combo.blockSignals(False)
+        self._updating_camera_combo = False
         self.camera_refresh_btn.setEnabled(True)
 
     def on_camera_changed(self, index):
         if index < 0 or not app_state.active_profile:
             return
+        if self._updating_camera_combo:
+            return
         device_name = self.camera_combo.itemData(index)
         if device_name is None:
             self.status_label.setText("Camera missing")
             return
+        stored_camera = get_profile_camera_device(app_state.active_profile)
         display_text = self.camera_combo.itemText(index)
         clean_name = str(device_name)
         logging.info("[CAM_UI] camera changed index=%s display=%r stored=%r", index, display_text, clean_name)
+        if clean_name == stored_camera:
+            return
         set_profile_camera_device(app_state.active_profile, clean_name)
-        self._preview_failure_reason = ""
         self._last_preview_timestamp = None
+        self._preview_last_valid_frame_time = 0.0
         release_preview_capture()
         self.ensure_preview_capture()
 
@@ -513,11 +526,9 @@ class DashboardPanel(QWidget):
             width, height = get_profile_frame_size(profile)
             if not width or not height:
                 width, height = get_profile_frame_size_fallback()
-        preview_w = max(320, self.camera_preview.width())
-        preview_h = max(180, self.camera_preview.height())
-        width = min(width, preview_w, 640)
-        height = min(height, preview_h, 360)
-        fps = min(10, max(1, get_profile_fps(profile)))
+        width = min(width, self.MAX_PREVIEW_WIDTH)
+        height = min(height, self.MAX_PREVIEW_HEIGHT)
+        fps = min(30, max(1, get_profile_fps(profile)))
         return width, height, fps
 
     def _set_live_preview_enabled(self, enabled: bool):
@@ -552,13 +563,13 @@ class DashboardPanel(QWidget):
             self._preview_failure_reason = message or "Camera preview unavailable"
             self.camera_preview.setPixmap(QPixmap())
             self.camera_preview.setText(self._preview_failure_reason)
-            self.status_label.setText(self._preview_failure_reason)
             if enabled and message and "owned by" in message:
                 self._set_live_preview_enabled(False)
             return
 
         self._preview_failure_reason = ""
         self._last_preview_timestamp = None
+        self._preview_last_valid_frame_time = time.time()
         self.update_camera_preview()
 
     def ensure_preview_capture(self):
@@ -571,8 +582,13 @@ class DashboardPanel(QWidget):
         frame_item = self._frozen_frame or get_latest_preview_frame() or get_latest_global_frame()
         if frame_item is None:
             self._last_preview_timestamp = None
-            self.camera_preview.setPixmap(QPixmap())
-            self.camera_preview.setText(self._preview_failure_reason or "Camera preview unavailable")
+            if self._preview_failure_reason:
+                self.camera_preview.setPixmap(QPixmap())
+                self.camera_preview.setText(self._preview_failure_reason)
+                return
+            if (time.time() - self._preview_last_valid_frame_time) > 1.0:
+                self.camera_preview.setPixmap(QPixmap())
+                self.camera_preview.setText("Camera preview unavailable")
             return
 
         timestamp, payload = frame_item
@@ -582,8 +598,6 @@ class DashboardPanel(QWidget):
         if isinstance(payload, np.ndarray):
             bgr = payload
             if bgr.ndim != 3 or bgr.shape[2] != 3:
-                self.camera_preview.setPixmap(QPixmap())
-                self.camera_preview.setText("Camera preview unavailable")
                 return
             height, width, _ = bgr.shape
         else:
@@ -598,8 +612,6 @@ class DashboardPanel(QWidget):
             frame = np.frombuffer(payload, dtype=np.uint8)
             expected = width * height * 3
             if frame.size != expected:
-                self.camera_preview.setPixmap(QPixmap())
-                self.camera_preview.setText("Camera preview unavailable")
                 return
             bgr = frame.reshape((height, width, 3))
         image = QImage(
@@ -619,3 +631,4 @@ class DashboardPanel(QWidget):
         )
         self.camera_preview.setText("")
         self._last_preview_timestamp = timestamp
+        self._preview_last_valid_frame_time = time.time()

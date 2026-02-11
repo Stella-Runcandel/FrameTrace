@@ -178,7 +178,13 @@ def resolve_camera_device_token(selected_display_name: str, force_refresh: bool 
     return None
 
 
-def build_ffmpeg_capture_command(input_token: str, config: CaptureConfig, *, allow_input_tuning: bool = True):
+def build_ffmpeg_capture_command(
+    input_token: str,
+    config: CaptureConfig,
+    *,
+    allow_input_tuning: bool = True,
+    pipeline: str = "monitoring",
+):
     ffmpeg_loglevel = "verbose" if ffmpeg_debug_enabled() else "warning"
     cmd = [
         resolve_ffmpeg_path(),
@@ -195,16 +201,19 @@ def build_ffmpeg_capture_command(input_token: str, config: CaptureConfig, *, all
         "-flags",
         "low_delay",
     ]
+    if pipeline == "preview":
+        cmd.extend(["-thread_queue_size", "512"])
     if allow_input_tuning and config.input_width is not None and config.input_height is not None:
         cmd.extend(["-video_size", f"{config.input_width}x{config.input_height}"])
     if allow_input_tuning and config.input_fps is not None:
         cmd.extend(["-framerate", str(config.input_fps)])
 
+    cmd.extend(["-i", input_token])
+    if pipeline == "preview":
+        cmd.extend(["-vf", f"scale={config.width}:{config.height}:flags=fast_bilinear"])
+    else:
+        cmd.extend(["-s", f"{config.width}x{config.height}"])
     cmd.extend([
-        "-i",
-        input_token,
-        "-s",
-        f"{config.width}x{config.height}",
         "-r",
         str(config.fps),
         "-pix_fmt",
