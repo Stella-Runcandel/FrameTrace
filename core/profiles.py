@@ -135,7 +135,6 @@ def create_profile(profile_name):
     return True, f"Profile '{profile_name}' created."
 
 def delete_profile(profile_name):
-    """Delete a profile and its filesystem contents."""
     """Remove a profile and its data. Returns (success, message). Validates path to prevent traversal."""
     valid, message = validate_profile_name(profile_name)
     if not valid:
@@ -144,9 +143,8 @@ def delete_profile(profile_name):
     target = os.path.realpath(profile_path(profile_name))
     if not target.startswith(base + os.path.sep):
         return False, "Invalid profile path."
-    if not os.path.exists(target):
-        return False, "Profile not found."
-    shutil.rmtree(target)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
     storage.delete_profile(profile_name)
     return True, f"Profile '{profile_name}' deleted."
 
@@ -337,6 +335,7 @@ def list_references(profile_name):
 
 def list_debug_frames(profile_name, allow_fallback=False):
     """List debug image names, optionally filtering by profile."""
+    storage.sync_debug_entries_with_filesystem()
     profile_filter = profile_name if not allow_fallback else None
     entries = storage.list_debug_entries(profile_filter)
     return [os.path.basename(entry["path"]) for entry in entries]
@@ -462,8 +461,8 @@ def delete_reference_files(profile_name, ref_name):
     dirs = get_profile_dirs(profile_name)
     ref_dir = dirs["references"]
     ref_path = _safe_realpath(ref_dir, ref_name)
-    if not ref_path or not os.path.exists(ref_path):
-        return False, "Reference not found."
+    if not ref_path:
+        return False, "Invalid reference name."
     if os.path.isfile(ref_path):
         os.remove(ref_path)
     storage.delete_reference(profile_name, ref_name)
@@ -477,8 +476,8 @@ def delete_frame_and_references(profile_name, frame_name):
     dirs = get_profile_dirs(profile_name)
     frame_dir = dirs["frames"]
     frame_path = _safe_realpath(frame_dir, frame_name)
-    if not frame_path or not os.path.exists(frame_path):
-        return False, "Frame not found.", []
+    if not frame_path:
+        return False, "Invalid frame name.", []
     if os.path.isfile(frame_path):
         os.remove(frame_path)
     storage.delete_frame(profile_name, frame_name)
@@ -508,21 +507,20 @@ def delete_debug_frame(profile_name, debug_name, allow_fallback=False):
     if not _is_supported_debug_name(debug_name):
         return False, 0
     debug_path = _safe_realpath(get_debug_dir(), debug_name)
-    if not debug_path or not os.path.exists(debug_path):
+    if not debug_path:
         return False, 0
+    bytes_freed = 0
     if os.path.isfile(debug_path):
         try:
             bytes_freed = os.path.getsize(debug_path)
         except Exception:
             bytes_freed = 0
         os.remove(debug_path)
-        entries = storage.list_debug_entries(profile_name if not allow_fallback else None)
-        for entry in entries:
-            if os.path.basename(entry["path"]) == debug_name:
-                storage.delete_debug_entries([entry["id"]])
-                break
-        return True, bytes_freed
-    return False, 0
+
+    entries = storage.list_debug_entries(profile_name if not allow_fallback else None)
+    ids_to_delete = [entry["id"] for entry in entries if os.path.basename(entry["path"]) == debug_name]
+    storage.delete_debug_entries(ids_to_delete)
+    return True, bytes_freed
 
 
 def delete_all_debug_frames(profile_name, allow_fallback=False):
