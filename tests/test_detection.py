@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -65,3 +66,43 @@ class DetectionTests(unittest.TestCase):
         result2 = detector.evaluate_frame("Delta", frame, state, selected_reference="ref_1.png")
         self.assertEqual(result1.matched, result2.matched)
         self.assertAlmostEqual(result1.confidence, result2.confidence, places=6)
+
+    def test_debug_frame_saved_periodically_while_event_active(self):
+        """Debug image should be emitted at interval while persistent match remains active."""
+        import cv2
+        from core import detector
+
+        profiles.create_profile("Delta")
+        profiles.update_profile_detection_threshold("Delta", 0.5)
+        dirs = profiles.get_profile_dirs("Delta")
+
+        frame = np.zeros((64, 64, 3), dtype=np.uint8)
+        frame[16:32, 16:32] = 255
+        frame_path = Path(dirs["frames"]) / "frame.png"
+        cv2.imwrite(str(frame_path), frame)
+        storage.add_frame("Delta", frame_path.name, str(frame_path))
+
+        ref = frame[16:32, 16:32].copy()
+        ref_path = Path(dirs["references"]) / "ref_1.png"
+        cv2.imwrite(str(ref_path), ref)
+        storage.add_reference("Delta", ref_path.name, str(ref_path), "frame.png")
+
+        state = detector.new_detector_state()
+        fake_times = iter([100.0, 100.4, 101.2])
+
+        with (
+            mock.patch.object(detector, "get_debug_dir", return_value=dirs["debug"]),
+            mock.patch.object(detector, "_save_debug_image_if_allowed") as save_mock,
+            mock.patch.object(detector.time, "time", side_effect=lambda: next(fake_times)),
+        ):
+            result1 = detector.evaluate_frame("Delta", frame, state, selected_reference="ref_1.png")
+            result2 = detector.evaluate_frame("Delta", frame, state, selected_reference="ref_1.png")
+            result3 = detector.evaluate_frame("Delta", frame, state, selected_reference="ref_1.png")
+
+        self.assertTrue(result1.event_start)
+        self.assertIsNotNone(result1.debug_frame)
+        self.assertFalse(result2.event_start)
+        self.assertIsNone(result2.debug_frame)
+        self.assertFalse(result3.event_start)
+        self.assertIsNotNone(result3.debug_frame)
+        self.assertEqual(save_mock.call_count, 2)

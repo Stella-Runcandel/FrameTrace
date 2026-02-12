@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, QUrl, pyqtSignal
+from PyQt6.QtMultimedia import QSoundEffect
 
 from app.app_state import app_state
 from app.services.ffmpeg_capture_supervisor import LogLevel
@@ -22,7 +24,6 @@ from app.services.monitor_state_machine import InvalidTransition, MonitoringStat
 from app.services.monitor_pipeline import FfmpegCapture
 from app.services.capture_constants import CANONICAL_FPS, CANONICAL_HEIGHT, CANONICAL_WIDTH
 from core import detector as dect
-from core import notifier as notif
 from core.profiles import (
     get_profile_camera_device,
     get_profile_dirs,
@@ -432,6 +433,7 @@ class MonitorService(QThread):
     metrics = pyqtSignal(dict)
     state_changed = pyqtSignal(str)
     match_debug_frame = pyqtSignal(object)
+    play_alert_sound = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -445,6 +447,19 @@ class MonitorService(QThread):
         self._detection_consumer = DetectionConsumer()
         self._metrics = MetricsConsumer()
         self._monitor_fps = 1
+        self._alert_sound = QSoundEffect()
+        self._alert_sound.setVolume(0.7)
+        alert_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "alert.wav")
+        if os.path.exists(alert_path):
+            self._alert_sound.setSource(QUrl.fromLocalFile(os.path.abspath(alert_path)))
+        self.play_alert_sound.connect(self._play_alert_sound)
+
+    def _play_alert_sound(self) -> None:
+        """Play preloaded low-latency alert sound (Qt in-process audio backend)."""
+        if self._alert_sound.source().isEmpty():
+            return
+        self._alert_sound.stop()
+        self._alert_sound.play()
 
     def current_state(self) -> MonitoringState:
         return self._state.state
@@ -648,12 +663,10 @@ class MonitorService(QThread):
             if result.matched:
                 self.status.emit("Dialogue detected!")
                 last_detection_time = result.timestamp
-                if result.event_start and result.debug_frame is not None:
+                if result.debug_frame is not None:
                     self.match_debug_frame.emit(result.debug_frame)
-                try:
-                    notif.alert()
-                except Exception:
-                    logging.exception("Alert backend failure")
+                if result.event_start:
+                    self.play_alert_sound.emit()
 
             processed += 1
             if now - start >= 5:

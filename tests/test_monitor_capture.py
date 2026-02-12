@@ -280,6 +280,49 @@ class MonitorCaptureTests(unittest.TestCase):
 
         self.assertEqual(eval_mock.call_count, 1)
 
+    def test_processing_loop_triggers_sound_only_on_event_start(self):
+        service = self.monitor_service.MonitorService()
+        service._monitor_fps = 60
+
+        class BurstQueue:
+            dropped_frames = 0
+            maxlen = 3
+
+            def __init__(self):
+                self._calls = 0
+
+            def get(self, timeout=0.5):
+                self._calls += 1
+                if self._calls <= 3:
+                    return self.monitor_service.FramePacket(1.0, b"\x00" * (2 * 2))
+                service._stop_event.set()
+                return None
+
+            def size(self):
+                return 0
+
+        queue = BurstQueue()
+        queue.monitor_service = self.monitor_service
+
+        results = [
+            SimpleNamespace(confidence=0.9, matched=True, timestamp=1.0, event_start=True, debug_frame=None),
+            SimpleNamespace(confidence=0.9, matched=True, timestamp=1.1, event_start=False, debug_frame=None),
+            SimpleNamespace(confidence=0.1, matched=False, timestamp=1.2, event_start=False, debug_frame=None),
+        ]
+
+        with (
+            mock.patch.object(self.monitor_service.app_state, "selected_reference", "ref"),
+            mock.patch.object(service._metrics, "on_frame"),
+            mock.patch.object(service._detection_consumer, "is_paused", return_value=False),
+            mock.patch.object(self.monitor_service.time, "time", side_effect=[0.0, 0.01, 0.02, 0.03]),
+            mock.patch.object(self.monitor_service.dect, "evaluate_frame", side_effect=results),
+            mock.patch.object(service, "_play_alert_sound") as play_mock,
+        ):
+            service.play_alert_sound.connect(service._play_alert_sound)
+            service._processing_loop("alpha", queue, 2, 2)
+
+        self.assertEqual(play_mock.call_count, 1)
+
     def test_monitoring_retries_limited_and_reports_failure(self):
         service = self.monitor_service.MonitorService()
         messages = []

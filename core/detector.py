@@ -24,6 +24,42 @@ from core import storage
 EXIT_TIMEOUT = 0.6  # seconds dialogue must disappear to reset
 DEBUG_STORAGE_LIMIT_BYTES = 1_073_741_824  # 1 GB
 DEBUG_STORAGE_LIMIT_COUNT = 2000
+DEBUG_SAVE_INTERVAL_SECONDS = float(os.getenv("DEBUG_SAVE_INTERVAL_SECONDS", "1.0"))
+FRAME_COARSE_SCALE = float(os.getenv("FRAME_COARSE_SCALE", "0.5"))
+COARSE_THRESHOLD_FACTOR = 0.75
+COARSE_THRESHOLD_FLOOR = 0.45
+DEFAULT_MATCH_METHOD = os.getenv("DETECTOR_MATCH_METHOD", "TM_CCOEFF_NORMED")
+ENABLE_DEBUG_LOGGING = os.getenv("ENABLE_DEBUG_LOGGING", "0") == "1"
+
+
+cv2.setUseOptimized(True)
+# Keep OpenCV multithreading enabled for template matching workloads.
+cv_threads = int(os.getenv("DETECTOR_CV_THREADS", str(os.cpu_count() or 1)))
+cv2.setNumThreads(max(1, cv_threads))
+
+
+@dataclass(frozen=True)
+class _TemplateCacheEntry:
+    name: str
+    edge: object
+    small_edge: object
+    width: int
+    height: int
+    small_width: int
+    small_height: int
+
+
+@dataclass
+class _ProfileTemplateCache:
+    references_dir: str
+    templates: list[_TemplateCacheEntry]
+    by_name: dict[str, _TemplateCacheEntry]
+    signature: tuple[tuple[str, int, int], ...]
+
+
+_TEMPLATE_CACHE_BY_PROFILE: dict[str, _ProfileTemplateCache] = {}
+_MATCH_METHOD = getattr(cv2, DEFAULT_MATCH_METHOD, cv2.TM_CCOEFF_NORMED)
+LOGGER = logging.getLogger(__name__)
 
 
 # =========================
@@ -39,6 +75,8 @@ class DetectorState:
     debug_counter: int = 0
     debug_limit_warning_emitted: bool = False
     total_debug_storage_bytes: int = 0
+    last_debug_save_time: float = 0.0
+    last_match_time_ms: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -205,44 +243,89 @@ def reference_selector(profile_name):
 # =========================
 
 def _find_best_match(profile_name, frame_gray, selected_reference: str | None = None):
-    """Return best matching reference and confidence score for a frame."""
-    frame_e = cv2.Canny(frame_gray, 80, 160)
-    references_dir = get_profile_dirs(profile_name)["references"]
+    """Return best matching reference and confidence score for a frame.
 
-    refs_to_check = (
-        [selected_reference]
-        if selected_reference
-        else [f for f in os.listdir(references_dir) if f.lower().endswith(".png")]
-    )
+    Coarse→fine strategy:
+    1) Run template matching on downscaled edge maps to quickly reject negatives.
+    2) Only for coarse candidates, run full-resolution matching in a local window.
+    """
+    edges_started = time.perf_counter()
+    # Compute frame edges once per frame for all templates.
+    frame_e = cv2.Canny(frame_gray, 80, 160)
+    small_w = max(1, int(frame_e.shape[1] * FRAME_COARSE_SCALE))
+    small_h = max(1, int(frame_e.shape[0] * FRAME_COARSE_SCALE))
+    frame_small = cv2.resize(frame_e, (small_w, small_h), interpolation=cv2.INTER_AREA)
+    refs_to_check = _get_profile_templates(profile_name, selected_reference)
+
     best_ref = None
     best_bbox = None
     best_score = 0.0
-    for ref in refs_to_check:
-        if not ref.lower().endswith(".png"):
-            continue
-        ref_path = os.path.join(references_dir, ref)
-        template = cv2.imread(ref_path, cv2.IMREAD_GRAYSCALE)
-        if template is None:
-            continue
-
-        template_e = cv2.Canny(template, 80, 160)
-        tw, th = template_e.shape[1], template_e.shape[0]
-        fw, fh = frame_e.shape[1], frame_e.shape[0]
+    threshold = get_detection_threshold(profile_name)
+    coarse_threshold = max(COARSE_THRESHOLD_FLOOR, threshold * COARSE_THRESHOLD_FACTOR)
+    fw, fh = frame_e.shape[1], frame_e.shape[0]
+    coarse_time_ms = 0.0
+    fine_time_ms = 0.0
+    for ref_entry in refs_to_check:
+        tw, th = ref_entry.width, ref_entry.height
         if tw > fw or th > fh:
             continue
-        result = cv2.matchTemplate(frame_e, template_e, cv2.TM_CCOEFF_NORMED)
+
+        if ref_entry.small_width > frame_small.shape[1] or ref_entry.small_height > frame_small.shape[0]:
+            continue
+        coarse_started = time.perf_counter()
+        coarse_result = cv2.matchTemplate(frame_small, ref_entry.small_edge, _MATCH_METHOD)
+        coarse_time_ms += (time.perf_counter() - coarse_started) * 1000.0
+        _, coarse_max_val, _, coarse_max_loc = cv2.minMaxLoc(coarse_result)
+        if coarse_max_val < coarse_threshold:
+            continue
+
+        coarse_x, coarse_y = coarse_max_loc
+        full_x = int(coarse_x / FRAME_COARSE_SCALE)
+        full_y = int(coarse_y / FRAME_COARSE_SCALE)
+        margin_x = max(8, tw // 2)
+        margin_y = max(8, th // 2)
+        roi_x0 = max(0, full_x - margin_x)
+        roi_y0 = max(0, full_y - margin_y)
+        roi_x1 = min(fw, full_x + tw + margin_x)
+        roi_y1 = min(fh, full_y + th + margin_y)
+        if (roi_x1 - roi_x0) < tw or (roi_y1 - roi_y0) < th:
+            continue
+
+        search_region = frame_e[roi_y0:roi_y1, roi_x0:roi_x1]
+        fine_started = time.perf_counter()
+        result = cv2.matchTemplate(search_region, ref_entry.edge, _MATCH_METHOD)
+        fine_time_ms += (time.perf_counter() - fine_started) * 1000.0
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if max_val > best_score:
-            x, y = max_loc
-            h, w = template_e.shape[:2]
+        if selected_reference and max_val >= threshold:
+            x = roi_x0 + max_loc[0]
+            y = roi_y0 + max_loc[1]
+            h, w = ref_entry.height, ref_entry.width
             GRID = 8
             x = (x // GRID) * GRID
             y = (y // GRID) * GRID
-            best_ref = ref
+            return ref_entry.name, (x, y, w, h), max_val
+
+        if max_val > best_score:
+            x = roi_x0 + max_loc[0]
+            y = roi_y0 + max_loc[1]
+            h, w = ref_entry.height, ref_entry.width
+            GRID = 8
+            x = (x // GRID) * GRID
+            y = (y // GRID) * GRID
+            best_ref = ref_entry.name
             best_bbox = (x, y, w, h)
             best_score = max_val
 
-    if best_ref and best_score >= get_detection_threshold(profile_name):
+    if ENABLE_DEBUG_LOGGING and LOGGER.isEnabledFor(logging.DEBUG):
+        LOGGER.debug(
+            "Detector coarse/fine timings: total=%.2fms coarse=%.2fms fine=%.2fms refs=%d",
+            (time.perf_counter() - edges_started) * 1000.0,
+            coarse_time_ms,
+            fine_time_ms,
+            len(refs_to_check),
+        )
+
+    if best_ref and best_score >= threshold:
         return best_ref, best_bbox, best_score
 
     return None, None, best_score
@@ -294,11 +377,15 @@ def evaluate_frame(profile_name, frame, state: DetectorState, selected_reference
         roi_x, roi_y, roi_w, roi_h = roi
         processed_frame = frame_gray[roi_y:roi_y + roi_h, roi_x:roi_x + roi_w]
 
+    match_started = time.perf_counter()
     matched_ref, match_bbox, confidence = _find_best_match(
         profile_name,
         processed_frame,
         selected_reference,
     )
+    state.last_match_time_ms = (time.perf_counter() - match_started) * 1000.0
+    if ENABLE_DEBUG_LOGGING and LOGGER.isEnabledFor(logging.DEBUG):
+        LOGGER.debug("Detector match time: %.2f ms", state.last_match_time_ms)
     if match_bbox is not None and roi is not None:
         roi_x, roi_y, _, _ = roi
         x, y, w, h = match_bbox
@@ -314,7 +401,8 @@ def evaluate_frame(profile_name, frame, state: DetectorState, selected_reference
         if state.active_dialogue != matched_ref:
             state.active_dialogue = matched_ref
 
-        if event_start:
+        should_save_debug = event_start or (now - state.last_debug_save_time >= DEBUG_SAVE_INTERVAL_SECONDS)
+        if should_save_debug:
             debug = cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
             if roi is not None:
                 roi_x, roi_y, roi_w, roi_h = roi
@@ -331,9 +419,10 @@ def evaluate_frame(profile_name, frame, state: DetectorState, selected_reference
                     profile_name if profile_valid else None,
                     matched_ref,
                 )
+                state.last_debug_save_time = now
 
         debug_flash = None
-        if event_start:
+        if should_save_debug:
             debug_flash = debug.copy()
         return DetectionResult(True, float(confidence), matched_ref, now, event_start=event_start, debug_frame=debug_flash)
 
@@ -341,6 +430,7 @@ def evaluate_frame(profile_name, frame, state: DetectorState, selected_reference
         state.active_dialogue = None
         state.event_active = False
         state.last_debug_frame = None
+        state.last_debug_save_time = 0.0
 
     return DetectionResult(False, float(confidence), None, now)
 
@@ -374,3 +464,58 @@ def frame_comp(profile_name, state=None):
         state = _default_detector_state
 
     return frame_comp_from_array(profile_name, frame, state)
+
+
+def _get_profile_templates(profile_name: str, selected_reference: str | None = None) -> list[_TemplateCacheEntry]:
+    references_dir = get_profile_dirs(profile_name)["references"]
+    cache = _TEMPLATE_CACHE_BY_PROFILE.get(profile_name)
+
+    signature = []
+    for name in os.listdir(references_dir):
+        if not name.lower().endswith(".png"):
+            continue
+        ref_path = os.path.join(references_dir, name)
+        try:
+            stat = os.stat(ref_path)
+        except FileNotFoundError:
+            continue
+        signature.append((name, stat.st_size, stat.st_mtime_ns))
+    signature_t = tuple(sorted(signature))
+
+    if cache is None or cache.references_dir != references_dir or cache.signature != signature_t:
+        templates: list[_TemplateCacheEntry] = []
+        for name, _, _ in signature_t:
+            ref_path = os.path.join(references_dir, name)
+            template = cv2.imread(ref_path, cv2.IMREAD_GRAYSCALE)
+            if template is None:
+                continue
+            edge = cv2.Canny(template, 80, 160)
+            h, w = edge.shape[:2]
+            small_w = max(1, int(w * FRAME_COARSE_SCALE))
+            small_h = max(1, int(h * FRAME_COARSE_SCALE))
+            small_edge = cv2.resize(edge, (small_w, small_h), interpolation=cv2.INTER_AREA)
+            templates.append(
+                _TemplateCacheEntry(
+                    name=name,
+                    edge=edge,
+                    small_edge=small_edge,
+                    width=w,
+                    height=h,
+                    small_width=small_w,
+                    small_height=small_h,
+                )
+            )
+        cache = _ProfileTemplateCache(
+            references_dir=references_dir,
+            templates=templates,
+            by_name={entry.name: entry for entry in templates},
+            signature=signature_t,
+        )
+        _TEMPLATE_CACHE_BY_PROFILE[profile_name] = cache
+
+    if selected_reference:
+        selected = cache.by_name.get(selected_reference)
+        if selected is None:
+            return []
+        return [selected]
+    return cache.templates
