@@ -138,6 +138,7 @@ def _emit_debug_limit_warning_once(state: DetectorState):
 def _save_debug_image_if_allowed(debug_dir, debug_image, state: DetectorState, profile_name: str, reference_name: str):
     """Persist debug image and enforce global bounds."""
     try:
+        storage.prune_missing_debug_entries()
         state.debug_counter += 1
         debug_path = os.path.join(
             debug_dir,

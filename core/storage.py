@@ -347,6 +347,24 @@ def list_debug_entries(profile_name: str | None) -> list[sqlite3.Row]:
     return rows
 
 
+def prune_missing_debug_entries() -> None:
+    """Remove debug metadata rows for files that no longer exist on disk."""
+    with connect() as conn:
+        rows = conn.execute("SELECT id, path FROM debug_entries").fetchall()
+        missing_ids = [row["id"] for row in rows if not os.path.isfile(row["path"])]
+        if not missing_ids:
+            return
+        conn.execute(
+            f"DELETE FROM debug_entries WHERE id IN ({','.join('?' for _ in missing_ids)})",
+            missing_ids,
+        )
+
+
+def sync_debug_entries_with_filesystem() -> None:
+    """One-shot sync to remove stale debug metadata rows."""
+    prune_missing_debug_entries()
+
+
 def delete_debug_entries(ids: Iterable[int]) -> None:
     """Delete debug metadata rows by id."""
     id_list = list(ids)

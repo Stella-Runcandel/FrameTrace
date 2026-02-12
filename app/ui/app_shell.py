@@ -18,6 +18,7 @@ from app.ui.panels.references import ReferencesPanel
 from app.ui.panels.profile_selector import ProfileSelectorPanel
 from app.ui.panels.debug import DebugPanel
 from app.ui.panels.frames import FramesPanel
+from core import storage
 from core.profiles import list_profiles
 
 
@@ -27,6 +28,7 @@ class AppShell(QWidget):
 
         self.settings = QSettings()
         list_profiles()
+        storage.sync_debug_entries_with_filesystem()
 
         self.setWindowTitle("Frame Trace")
         self.setGeometry(300, 300, 520, 300)
