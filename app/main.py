@@ -91,15 +91,33 @@ QScrollArea > QWidget > QWidget {
 }
 """
 
-
 def main():
+    import sys
+    import ctypes
+    from pathlib import Path
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QIcon
+
     setup_logging()
+
+    if sys.platform == "win32":
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "frametrace.app.0.9B"
+        )
+
     QCoreApplication.setOrganizationName("Frame Trace")
     QCoreApplication.setApplicationName("Frame Trace")
-    app = QApplication(sys.argv)
-    app.setApplicationName("Frame Trace")
 
-    icon_path = Path(__file__).resolve().parent.parent / "Assets" / "app_icon.png"
+    app = QApplication(sys.argv)
+
+    # Correct base path detection
+    if getattr(sys, "frozen", False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).resolve().parent.parent
+
+    icon_path = base_dir / "Assets" / "app_icon.ico"
+
     app_icon = QIcon(str(icon_path))
     if not app_icon.isNull():
         app.setWindowIcon(app_icon)
@@ -109,6 +127,7 @@ def main():
     shell = AppShell()
     if not app_icon.isNull():
         shell.setWindowIcon(app_icon)
+
     shell.show()
     sys.exit(app.exec())
 
