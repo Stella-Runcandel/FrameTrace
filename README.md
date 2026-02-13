@@ -1,9 +1,12 @@
-# FrameTrace >.<
+<div align="center">
 
-**Visual state monitoring & detection tool**  
-by **Stella Group** ✨
+# ✨ FrameTrace ✨  
+### Visual State Monitoring & Detection Tool  
+**by Stella Group**
 
-> “Stop staring at the screen. Let FrameTrace do it.”
+> *“Stop staring at the screen. Let FrameTrace do it.”*
+
+</div>
 
 ---
 
@@ -11,62 +14,158 @@ by **Stella Group** ✨
 
 FrameTrace is a **profile-based visual monitoring desktop application**.
 
-It watches a live video input (typically via **OBS Virtual Camera**), compares what it sees against **user-defined visual references**, and alerts you when a specific visual state appears on screen.
+It watches a live video input (typically via OBS Virtual Camera), compares what it sees against user-defined visual references, and alerts you when a specific visual state appears on screen.
 
 Everything runs **locally**:
-- no cloud services
-- no accounts
-- no background uploads
-- no hidden automation
+
+- 🚫 No cloud services  
+- 🚫 No accounts  
+- 🚫 No background uploads  
+- 🚫 No hidden automation  
+
+FrameTrace is a deterministic, local-first monitoring tool built for control.
 
 ---
 
-## ✨ Design Philosophy
+## 🎯 Detection & Monitoring
+
+Monitoring runs directly against in-memory camera frames using:
+
+```
+frame_comp_from_array()
+```
+
+This avoids per-cycle disk writes and keeps detection fast.
+
+When monitoring is active:
+
+- Only the selected reference is evaluated  
+- Detection uses edge-based matching (Canny + matchTemplate)  
+- Bounding boxes are computed deterministically  
+
+File-based detection (`frame_comp`) remains available for manual/debug workflows using `captures/latest.png`.
+
+---
+
+## 💾 Capture & Debug Retention
+
+Artifact persistence is:
+
+- Optional  
+- Throttled  
+- Bounded  
+
+Configured in `core/detector.py`:
+
+| Setting | Description |
+|----------|------------|
+| `DEBUG_STORAGE_LIMIT_BYTES` | Maximum debug storage (default 1GB) |
+| `EXIT_TIMEOUT` | Time before event resets (default 0.6s) |
+
+This guarantees:
+
+- 📦 No unbounded disk growth  
+- 🧮 Predictable storage usage  
+- 🕒 Safe long-running sessions  
+
+---
+
+## 🧠 Design Philosophy
 
 FrameTrace is intentionally:
 
-- 🧠 **Deterministic** — no black-box AI, no mystery behavior  
-- 🧱 **Modular** — clear separation between UI, detection, and data  
-- 🧹 **Safe with files** — user data is never overwritten during updates  
-- 😴 **Boring to extend** — predictable code paths by design  
+- 🧠 **Deterministic** — no black-box AI  
+- 🧱 **Modular** — clean separation between UI, detection, and data  
+- 🧹 **Safe with files** — user data survives updates  
+- 😴 **Predictable to extend** — boring, explicit code paths  
 
-FrameTrace is **not game-specific**, **not cloud-based**, and **not AI hype**.  
-It’s a local, power-user tool for people who want control.
-
----
-
-## 🎯 Detection & Artifact Persistence
-
-- Monitoring runs detection directly against **in-memory camera frames** using  
-  `frame_comp_from_array`, avoiding per-cycle disk round-trips.
-- **Only the selected reference** is monitored when monitoring is active; select one in the References panel.
-- File-based detection (`frame_comp`) remains available for manual and debug
-  workflows that intentionally operate on `captures/latest.png`.
-
-### Capture & Debug Retention
-
-Artifact persistence is **optional, throttled, and bounded**.
-
-Retention behavior is configured in `core/detector.py`:
-
-- `DEBUG_STORAGE_LIMIT_BYTES` — maximum debug storage (1 GB); writes pause when reached
-- `EXIT_TIMEOUT` — seconds the dialogue must be absent before the event resets (0.6 s)
-- Debug images are written when a **new detection event starts**; manual deletion updates accounting
-
-This guarantees:
-- no unbounded disk growth
-- predictable storage usage
-- safe long-running sessions
-
-### Architecture
-
-- **core/detector.py** — edge-based template matching (Canny + matchTemplate)
-- **core/profiles.py** — profile and asset management (Data/Profiles layout)
-- **core/notifier.py** — Windows notification and sound alerts
-- **app/services/monitor_service.py** — camera capture and detection loop (QThread)
+FrameTrace is not AI hype.  
+It’s a local, power-user visual monitoring tool.
 
 ---
 
-## 💾 Data & Updates
+## 🏗 Architecture Overview
 
-All user data is stored in the `Data/` folder next to the executable:
+```
+core/detector.py
+    Edge-based template matching engine
+
+core/profiles.py
+    Profile + asset management
+
+core/notifier.py
+    Windows notification and alert system
+
+app/services/monitor_service.py
+    Camera capture and detection loop (QThread)
+```
+
+---
+
+## 📦 Installation
+
+Download the latest installer from:
+
+👉 **GitHub → Releases → FrameTrace_Setup.exe**
+
+- Installs per-user  
+- No admin required  
+- Data stored locally  
+
+---
+
+## 💽 Data & Updates
+
+All user data is stored in:
+
+```
+Data/
+```
+
+Located next to the executable.
+
+Includes:
+
+- Profiles  
+- Frames  
+- References  
+- Debug artifacts  
+- Logs  
+
+Updates do **not** overwrite user data.
+
+---
+
+## 🛠 Development
+
+Clone repository:
+
+```bash
+git clone https://github.com/yourusername/FrameTrace.git
+cd FrameTrace
+```
+
+Create virtual environment:
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run:
+
+```bash
+python run.py
+```
+
+---
+
+## 📄 License
+
+MIT License
