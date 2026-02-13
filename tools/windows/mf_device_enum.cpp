@@ -5,7 +5,7 @@
 //
 // This program only enumerates devices and prints JSON to stdout.
 // It does NOT open camera streams or process frames.
-
+/*
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfobjects.h>
@@ -219,3 +219,4 @@ int main() {
 
     return 0;
 }
+*/
