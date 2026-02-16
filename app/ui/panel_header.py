@@ -7,6 +7,11 @@ from app.ui.widget_utils import disable_button_focus_rect, disable_widget_intera
 
 class PanelHeader(QWidget):
     def __init__(self, title, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.nav = nav
 

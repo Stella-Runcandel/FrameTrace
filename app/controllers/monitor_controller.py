@@ -5,9 +5,19 @@ from app.app_state import app_state
 
 class MonitorController:
     def __init__(self, monitor_service):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.monitor = monitor_service
 
     def start(self):
+        """Execute start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.active_profile:
             return "No profile selected"
 
@@ -18,6 +28,11 @@ class MonitorController:
         return "Monitoring start requested"
 
     def stop(self):
+        """Execute stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.monitor.isRunning():
             return "Not monitoring"
 

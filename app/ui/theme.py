@@ -24,6 +24,11 @@ class Styles:
 
     @staticmethod
     def button(dark=False):
+        """Execute button.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if dark:
             return f"""
                 QPushButton {{
@@ -77,6 +82,11 @@ class Styles:
 
     @staticmethod
     def selected_button():
+        """Execute selected button.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return f"""
             QPushButton {{
                 font-weight: bold;
@@ -103,6 +113,11 @@ class Styles:
 
     @staticmethod
     def preview_label(object_name):
+        """Execute preview label.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return f"""
             QLabel#{object_name} {{
                 border: 2px solid {Colors.BORDER_DARK};
@@ -120,6 +135,11 @@ class Styles:
 
     @staticmethod
     def info_label(color=Colors.FG_BLACK):
+        """Execute info label.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return f"""
             QLabel {{
                 color: {color};
@@ -133,6 +153,11 @@ class Styles:
 
     @staticmethod
     def scroll_area():
+        """Execute scroll area.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return f"""
             QScrollArea#scroll_area {{
                 background-color: {Colors.BG_WHITE};

@@ -19,15 +19,30 @@ class InvalidTransition(RuntimeError):
 
 class MonitoringStateMachine:
     def __init__(self):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self._state = MonitoringState.IDLE
         self._lock = threading.Lock()
 
     @property
     def state(self) -> MonitoringState:
+        """Execute state.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._lock:
             return self._state
 
     def _transition(self, expected: set[MonitoringState], new_state: MonitoringState) -> MonitoringState:
+        """Execute  transition.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._lock:
             if self._state not in expected:
                 raise InvalidTransition(f"Cannot transition {self._state} -> {new_state}")
@@ -35,18 +50,43 @@ class MonitoringStateMachine:
             return self._state
 
     def request_start(self) -> MonitoringState:
+        """Execute request start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._transition({MonitoringState.IDLE}, MonitoringState.STARTING)
 
     def mark_running(self) -> MonitoringState:
+        """Execute mark running.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._transition({MonitoringState.STARTING}, MonitoringState.RUNNING)
 
     def request_stop(self) -> MonitoringState:
+        """Execute request stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._transition(
             {MonitoringState.RUNNING, MonitoringState.FAILED}, MonitoringState.STOPPING
         )
 
     def mark_failed(self) -> MonitoringState:
+        """Execute mark failed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._transition({MonitoringState.STARTING, MonitoringState.RUNNING}, MonitoringState.FAILED)
 
     def mark_idle(self) -> MonitoringState:
+        """Execute mark idle.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._transition({MonitoringState.STOPPING}, MonitoringState.IDLE)

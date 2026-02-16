@@ -28,6 +28,11 @@ from core import detector as dect
 
 class ParametersPanel(QWidget):
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.nav = nav
         self.base_config: BaseProfileConfig | None = None
@@ -118,6 +123,11 @@ class ParametersPanel(QWidget):
         self.preview_timer.start(250)
 
     def _init_runtime_config(self):
+        """Execute  init runtime config.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         if not profile:
             self.test_output.setText("Test output: Select a profile to use Parameters.")
@@ -133,10 +143,20 @@ class ParametersPanel(QWidget):
         self.threshold_spin.blockSignals(False)
 
     def _on_threshold_changed(self, value: float):
+        """Execute  on threshold changed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if self.runtime_config:
             self.runtime_config.detection_threshold = float(value)
 
     def _capture_snapshot(self):
+        """Execute  capture snapshot.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         frame = self._get_source_frame()
         if frame is None:
             self.test_output.setText("Test output: No frame available for snapshot.")
@@ -145,10 +165,20 @@ class ParametersPanel(QWidget):
         self.test_output.setText("Test output: Snapshot captured and preview frozen.")
 
     def _clear_snapshot(self):
+        """Execute  clear snapshot.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.snapshot_frame = None
         self.test_output.setText("Test output: Snapshot cleared.")
 
     def _get_source_frame(self) -> np.ndarray | None:
+        """Execute  get source frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         packet = get_latest_preview_frame() or get_latest_global_frame()
         if not packet:
             return None
@@ -162,11 +192,21 @@ class ParametersPanel(QWidget):
         return frame.reshape((CANONICAL_HEIGHT, CANONICAL_WIDTH)).copy()
 
     def _detection_config(self) -> dect.DetectionConfig | None:
+        """Execute  detection config.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.runtime_config:
             return None
         return dect.DetectionConfig(detection_threshold=self.runtime_config.detection_threshold)
 
     def _run_detection_once(self, frame: np.ndarray):
+        """Execute  run detection once.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         if not profile:
             return None, 0.0
@@ -183,6 +223,11 @@ class ParametersPanel(QWidget):
         return result, latency_ms
 
     def _refresh_preview(self):
+        """Execute  refresh preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.runtime_config:
             return
         frame = self.snapshot_frame if self.snapshot_frame is not None else self._get_source_frame()
@@ -210,6 +255,11 @@ class ParametersPanel(QWidget):
         self.metrics_label.setText(f"Confidence: {result.confidence:.3f} | FPS: {fps:.1f} | Latency: {latency_ms:.1f} ms")
 
     def _test_detection(self):
+        """Execute  test detection.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         frame = self.snapshot_frame if self.snapshot_frame is not None else self._get_source_frame()
         if frame is None:
             self.test_output.setText("Test output: No frame available.")
@@ -223,12 +273,22 @@ class ParametersPanel(QWidget):
         )
 
     def _on_apply(self):
+        """Execute  on apply.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.base_config or not self.runtime_config:
             return
         self.base_config = apply_debug_settings(self.base_config, self.runtime_config)
         self.test_output.setText("Test output: Debug settings applied to profile.")
 
     def on_panel_close(self):
+        """Execute on panel close.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if hasattr(self, "preview_timer"):
             self.preview_timer.stop()
         self.runtime_config = None

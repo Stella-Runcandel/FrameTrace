@@ -34,10 +34,20 @@ _VIRTUAL_HINTS = (
 
 
 def _camera_debug_enabled() -> bool:
+    """Execute  camera debug enabled.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     return os.environ.get("CAMERA_DEBUG", "").strip() in {"1", "true", "TRUE", "yes", "on"}
 
 
 def append_camera_debug_log(section: str, payload: str) -> None:
+    """Execute append camera debug log.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     if not _camera_debug_enabled():
         return
     logs_dir = Path("Data") / "Logs"
@@ -48,6 +58,11 @@ def append_camera_debug_log(section: str, payload: str) -> None:
 
 
 def _run_ffmpeg(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    """Execute  run ffmpeg.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     return subprocess.run(
         args,
         stdout=subprocess.PIPE,
@@ -75,6 +90,11 @@ def _parse_dshow_video_devices(stderr_text: str) -> list[str]:
 
 
 def _parse_avfoundation_video_devices(output: str) -> list[str]:
+    """Execute  parse avfoundation video devices.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     devices: list[str] = []
     in_video_section = False
 
@@ -95,6 +115,11 @@ def _parse_avfoundation_video_devices(output: str) -> list[str]:
 
 
 def _parse_v4l2_sources(output: str) -> list[str]:
+    """Execute  parse v4l2 sources.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     devices: list[str] = []
     for line in output.splitlines():
         stripped = line.strip()
@@ -109,6 +134,11 @@ def _parse_v4l2_sources(output: str) -> list[str]:
 
 
 def _reject_invalid_windows_names(items: Iterable[str]) -> list[str]:
+    """Execute  reject invalid windows names.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     valid: list[str] = []
     for item in items:
         name = item.strip()
@@ -122,6 +152,11 @@ def _reject_invalid_windows_names(items: Iterable[str]) -> list[str]:
 
 
 def _dedupe(items: Iterable[str]) -> list[str]:
+    """Execute  dedupe.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     seen: set[str] = set()
     out: list[str] = []
     for item in items:
@@ -137,11 +172,21 @@ def _dedupe(items: Iterable[str]) -> list[str]:
 
 
 def _is_virtual_camera(name: str) -> bool:
+    """Execute  is virtual camera.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     lowered = name.casefold()
     return any(hint in lowered for hint in _VIRTUAL_HINTS)
 
 
 def _names_to_camera_devices(names: Iterable[str], backend: str) -> list[CameraDevice]:
+    """Execute  names to camera devices.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     devices: list[CameraDevice] = []
     for name in names:
         token = f"video={name}" if backend == "dshow" else name
@@ -157,6 +202,11 @@ def _names_to_camera_devices(names: Iterable[str], backend: str) -> list[CameraD
 
 
 def _enumerate_dshow(ffmpeg_path: str) -> list[str]:
+    """Execute  enumerate dshow.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     cmd = [ffmpeg_path, "-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"]
     try:
         result = _run_ffmpeg(cmd)

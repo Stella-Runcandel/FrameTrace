@@ -10,6 +10,11 @@ class FfmpegToolsTests(unittest.TestCase):
     """Validate FFmpeg enumeration wiring and cache behavior."""
 
     def setUp(self):
+        """Execute setUp.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         ffmpeg_tools._ENUM_CACHE = None
 
     @patch(
@@ -20,6 +25,11 @@ class FfmpegToolsTests(unittest.TestCase):
         ],
     )
     def test_list_video_devices_uses_enumerator(self, enum_mock):
+        """Execute test list video devices uses enumerator.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         devices = ffmpeg_tools.list_video_devices()
         self.assertEqual(devices, ["HD Webcam", "Virtual Cam"])
         enum_mock.assert_called_once()
@@ -28,6 +38,11 @@ class FfmpegToolsTests(unittest.TestCase):
     @patch("app.services.ffmpeg_tools.resolve_ffmpeg_path", return_value="/tmp/custom-ffmpeg")
     @patch("app.services.ffmpeg_tools.platform.system", return_value="Linux")
     def test_list_video_devices_non_windows_retries_with_path_ffmpeg(self, _platform_mock, _resolve_mock, enum_mock):
+        """Execute test list video devices non windows retries with path ffmpeg.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         devices = ffmpeg_tools.list_video_devices(force_refresh=True)
         self.assertEqual(devices, [])
         self.assertEqual(enum_mock.call_count, 2)
@@ -37,6 +52,11 @@ class FfmpegToolsTests(unittest.TestCase):
         return_value=[CameraDevice(display_name="New Cam", ffmpeg_token="video=New Cam", backend="dshow", is_virtual=False)],
     )
     def test_list_video_devices_uses_cache(self, enum_mock):
+        """Execute test list video devices uses cache.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         ffmpeg_tools._ENUM_CACHE = [CameraDevice(display_name="Cached Cam", ffmpeg_token="video=Cached Cam", backend="dshow", is_virtual=False)]
         self.assertEqual(ffmpeg_tools.list_video_devices(), ["Cached Cam"])
         enum_mock.assert_not_called()
@@ -46,6 +66,11 @@ class FfmpegToolsTests(unittest.TestCase):
         return_value=[CameraDevice(display_name="Fresh Cam", ffmpeg_token="video=Fresh Cam", backend="dshow", is_virtual=False)],
     )
     def test_list_video_devices_force_refresh_invalidates_cache(self, enum_mock):
+        """Execute test list video devices force refresh invalidates cache.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         ffmpeg_tools._ENUM_CACHE = [CameraDevice(display_name="Stale Cam", ffmpeg_token="video=Stale Cam", backend="dshow", is_virtual=False)]
         self.assertEqual(ffmpeg_tools.list_video_devices(force_refresh=True), ["Fresh Cam"])
         enum_mock.assert_called_once()
@@ -55,6 +80,11 @@ class FfmpegToolsTests(unittest.TestCase):
         return_value=[CameraDevice(display_name="OBS Virtual Camera", ffmpeg_token="video=OBS Virtual Camera", backend="dshow", is_virtual=True)],
     )
     def test_resolve_camera_device_token_exact_match(self, _mock_list):
+        """Execute test resolve camera device token exact match.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.assertEqual(
             ffmpeg_tools.resolve_camera_device_token("OBS Virtual Camera"),
             "video=OBS Virtual Camera",
@@ -65,6 +95,11 @@ class FfmpegToolsTests(unittest.TestCase):
         return_value=[CameraDevice(display_name="OBS Virtual Camera", ffmpeg_token="video=OBS Virtual Camera", backend="dshow", is_virtual=True)],
     )
     def test_resolve_camera_device_token_missing_returns_none(self, _mock_list):
+        """Execute test resolve camera device token missing returns none.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.assertIsNone(ffmpeg_tools.resolve_camera_device_token("Camera 1"))
 
     @patch(
@@ -72,12 +107,22 @@ class FfmpegToolsTests(unittest.TestCase):
         return_value=[CameraDevice(display_name="OBS Virtual Camera", ffmpeg_token="video=OBS Virtual Camera", backend="dshow", is_virtual=True)],
     )
     def test_build_capture_input_candidates_uses_single_enumerated_token(self, _mock_list):
+        """Execute test build capture input candidates uses single enumerated token.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         candidates = ffmpeg_tools.build_capture_input_candidates("OBS Virtual Camera")
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0].token, "video=OBS Virtual Camera")
 
 
     def test_build_ffmpeg_capture_command_skips_input_tuning_when_disabled(self):
+        """Execute test build ffmpeg capture command skips input tuning when disabled.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config = ffmpeg_tools.CaptureConfig(
             width=1280,
             height=720,
@@ -92,6 +137,11 @@ class FfmpegToolsTests(unittest.TestCase):
         self.assertNotIn("-framerate", cmd)
 
     def test_build_ffmpeg_capture_command_allows_implicit_input_defaults(self):
+        """Execute test build ffmpeg capture command allows implicit input defaults.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config = ffmpeg_tools.CaptureConfig(
             width=1280,
             height=720,
@@ -113,12 +163,22 @@ class FfmpegToolsTests(unittest.TestCase):
     )
     @patch("app.services.ffmpeg_tools.platform.system", return_value="Windows")
     def test_build_capture_input_candidates_keeps_virtual_flag(self, _platform_mock, _mock_list):
+        """Execute test build capture input candidates keeps virtual flag.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         candidates = ffmpeg_tools.build_capture_input_candidates("USB Webcam")
         self.assertTrue(candidates)
         self.assertTrue(all(not c.is_virtual for c in candidates))
     @patch("app.services.ffmpeg_tools.platform.system", return_value="Windows")
     @patch("app.services.ffmpeg_tools._run_ffmpeg_command")
     def test_verify_windows_dshow_device_token_failure_markers(self, run_mock, _platform_mock):
+        """Execute test verify windows dshow device token failure markers.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         run_mock.return_value = type("R", (), {"stderr": "Error opening input file", "stdout": "", "returncode": 1})()
         ok, details = ffmpeg_tools.verify_windows_dshow_device_token("video=OBS Virtual Camera")
         self.assertFalse(ok)

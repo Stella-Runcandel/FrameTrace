@@ -23,9 +23,19 @@ QT_AVAILABLE = _module_importable("PyQt6.QtWidgets")
 
 class DummyNav:
     def pop(self):
+        """Execute pop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return None
 
     def push(self, widget, name):
+        """Execute push.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return None
 
 
@@ -34,12 +44,22 @@ class UiBehaviorTests(unittest.TestCase):
     """Validate UI refresh logic and validation messaging."""
     @classmethod
     def setUpClass(cls):
+        """Execute setUpClass.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt6.QtWidgets import QApplication
 
         cls._app = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        """Execute setUp.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         from PyQt6.QtWidgets import QPushButton, QScrollArea
         from app.app_state import app_state
         from app.ui.panels.dashboard import DashboardPanel
@@ -66,6 +86,11 @@ class UiBehaviorTests(unittest.TestCase):
         app_state.monitoring_active = False
 
     def tearDown(self):
+        """Execute tearDown.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         os.chdir(self.original_cwd)
         os.environ.pop("APP_DB_PATH", None)
 

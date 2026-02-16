@@ -10,6 +10,11 @@ from app.services.ffmpeg_tools import CaptureConfig
 
 
 def _module_importable(module: str) -> bool:
+    """Execute  module importable.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     result = subprocess.run(
         [sys.executable, "-c", f"import {module}"],
         stdout=subprocess.DEVNULL,
@@ -23,6 +28,11 @@ CV2_AVAILABLE = _module_importable("cv2")
 
 class DummyProcess:
     def poll(self):
+        """Execute poll.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return None
 
 
@@ -30,6 +40,11 @@ class DummyCapture:
     created = 0
 
     def __init__(self, input_token, config, frame_queue, allow_input_tuning=True, pipeline="monitoring"):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.device_name = input_token
         self.config = config
         self.queue = frame_queue
@@ -41,26 +56,56 @@ class DummyCapture:
         DummyCapture.created += 1
 
     def start(self):
+        """Execute start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return None
 
     def stop(self):
+        """Execute stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.stop_calls += 1
 
     def is_alive(self):
+        """Execute is alive.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return True
 
 
 class FailingCapture(DummyCapture):
     def __init__(self, *args, **kwargs):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__(*args, **kwargs)
         self._alive = False
         self.last_error = "device busy"
 
     def is_alive(self):
+        """Execute is alive.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._alive
 
 
 def _reset_globals(monitor_service):
+    """Execute  reset globals.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     monitor_service._GLOBAL_CAPTURE = None
     monitor_service._GLOBAL_QUEUE = None
     monitor_service._GLOBAL_INPUT_TOKEN = None
@@ -84,6 +129,11 @@ class MonitorCaptureTests(unittest.TestCase):
     """Validate reference counting and idempotent stop behavior."""
 
     def setUp(self):
+        """Execute setUp.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         import app.services.monitor_service as monitor_service
 
         self.monitor_service = monitor_service
@@ -91,6 +141,11 @@ class MonitorCaptureTests(unittest.TestCase):
         DummyCapture.created = 0
 
     def tearDown(self):
+        """Execute tearDown.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         _reset_globals(self.monitor_service)
 
     def test_global_capture_reference_counting(self):
@@ -144,6 +199,11 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertEqual(queue.size(), 2)
 
     def test_preview_same_config_does_not_restart(self):
+        """Execute test preview same config does not restart.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config = CaptureConfig(width=1280, height=720, fps=30)
         with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
             ok1, _ = self.monitor_service._ensure_preview_capture("camera-1", config, allow_input_tuning=False)
@@ -153,6 +213,11 @@ class MonitorCaptureTests(unittest.TestCase):
             self.assertEqual(DummyCapture.created, 1)
 
     def test_preview_restart_is_debounced(self):
+        """Execute test preview restart is debounced.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config1 = CaptureConfig(width=1280, height=720, fps=30)
         config2 = CaptureConfig(width=640, height=480, fps=30)
         with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
@@ -163,6 +228,11 @@ class MonitorCaptureTests(unittest.TestCase):
             self.assertEqual(reason, "Preview restart debounced")
 
     def test_preview_pause_blocks_restart(self):
+        """Execute test preview pause blocks restart.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config = CaptureConfig(width=1280, height=720, fps=30)
         with mock.patch.object(self.monitor_service, "FfmpegCapture", DummyCapture):
             self.monitor_service.pause_preview_for_monitoring()
@@ -172,6 +242,11 @@ class MonitorCaptureTests(unittest.TestCase):
 
 
     def test_preview_blocked_when_monitoring_owns_camera(self):
+        """Execute test preview blocked when monitoring owns camera.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         config = CaptureConfig(width=1280, height=720, fps=30)
         self.monitor_service._ACTIVE_OWNER_PIPELINE = "monitoring"
         self.monitor_service._ACTIVE_CAMERA_TOKEN = "camera-1"
@@ -181,9 +256,19 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertIn("owned by monitoring", reason)
 
     def test_virtual_preview_uses_single_retry(self):
+        """Execute test virtual preview uses single retry.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         calls = {"count": 0}
 
         def side_effect(*args, **kwargs):
+            """Execute side effect.
+            
+            Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+            the behavior without duplicating logic.
+            """
             calls["count"] += 1
             if calls["count"] == 1:
                 return False, "Preview failed: device busy"
@@ -199,6 +284,11 @@ class MonitorCaptureTests(unittest.TestCase):
 
 
     def test_snapshot_preview_releases_camera_owner(self):
+        """Execute test snapshot preview releases camera owner.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with mock.patch.object(self.monitor_service, "build_capture_input_candidates", return_value=[SimpleNamespace(token="video=cam-a", is_virtual=False)]):
             with mock.patch.object(self.monitor_service, "capture_single_frame_by_token", return_value=b"x" * (CANONICAL_WIDTH * CANONICAL_HEIGHT)):
                 ok, reason = self.monitor_service.capture_preview_snapshot("cam-a", 640, 480)
@@ -209,16 +299,31 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertIsNone(self.monitor_service._ACTIVE_OWNER_PIPELINE)
 
     def _fail_capture_once(self, input_token, config, *, allow_input_tuning):
+        """Execute  fail capture once.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         queue = self.monitor_service.FrameQueue(maxlen=2)
         cap = FailingCapture(input_token, config, queue, allow_input_tuning=allow_input_tuning)
         return cap, queue
 
 
     def test_monitoring_caps_resolution_to_960x540(self):
+        """Execute test monitoring caps resolution to 960x540.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         service = self.monitor_service.MonitorService()
         seen = {}
 
         def fail_once(input_token, config, *, allow_input_tuning):
+            """Execute fail once.
+            
+            Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+            the behavior without duplicating logic.
+            """
             seen["config"] = config
             return self._fail_capture_once(input_token, config, allow_input_tuning=allow_input_tuning)
 
@@ -246,6 +351,11 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertEqual(seen["config"].input_height, 540)
 
     def test_processing_loop_uses_resolved_monitor_fps(self):
+        """Execute test processing loop uses resolved monitor fps.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         service = self.monitor_service.MonitorService()
         service._monitor_fps = 20
 
@@ -254,9 +364,19 @@ class MonitorCaptureTests(unittest.TestCase):
             maxlen = 2
 
             def __init__(self):
+                """Execute   init  .
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 self._calls = 0
 
             def get(self, timeout=0.5):
+                """Execute get.
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 self._calls += 1
                 if self._calls <= 2:
                     return self.monitor_service.FramePacket(1.0, b"\x00" * (2 * 2))
@@ -264,6 +384,11 @@ class MonitorCaptureTests(unittest.TestCase):
                 return None
 
             def size(self):
+                """Execute size.
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 return 0
 
         queue = BurstQueue()
@@ -281,6 +406,11 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertEqual(eval_mock.call_count, 1)
 
     def test_processing_loop_triggers_sound_only_on_event_start(self):
+        """Execute test processing loop triggers sound only on event start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         service = self.monitor_service.MonitorService()
         service._monitor_fps = 60
 
@@ -289,9 +419,19 @@ class MonitorCaptureTests(unittest.TestCase):
             maxlen = 3
 
             def __init__(self):
+                """Execute   init  .
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 self._calls = 0
 
             def get(self, timeout=0.5):
+                """Execute get.
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 self._calls += 1
                 if self._calls <= 3:
                     return self.monitor_service.FramePacket(1.0, b"\x00" * (2 * 2))
@@ -299,6 +439,11 @@ class MonitorCaptureTests(unittest.TestCase):
                 return None
 
             def size(self):
+                """Execute size.
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 return 0
 
         queue = BurstQueue()
@@ -325,6 +470,11 @@ class MonitorCaptureTests(unittest.TestCase):
         self.assertEqual(len(alert_events), 1)
 
     def test_monitoring_retries_limited_and_reports_failure(self):
+        """Execute test monitoring retries limited and reports failure.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         service = self.monitor_service.MonitorService()
         messages = []
         states = []
@@ -361,18 +511,38 @@ class MonitorPreviewLifecycleTests(unittest.TestCase):
     """Preview lifecycle tests under the monitor service import gate."""
 
     def setUp(self):
+        """Execute setUp.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         import app.services.monitor_service as monitor_service
 
         self.monitor_service = monitor_service
         _reset_globals(monitor_service)
 
     def tearDown(self):
+        """Execute tearDown.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         _reset_globals(self.monitor_service)
 
     def test_virtual_preview_uses_single_retry(self):
+        """Execute test virtual preview uses single retry.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         calls = {"count": 0}
 
         def side_effect(*args, **kwargs):
+            """Execute side effect.
+            
+            Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+            the behavior without duplicating logic.
+            """
             calls["count"] += 1
             if calls["count"] == 1:
                 return False, "Preview failed: device busy"
@@ -387,8 +557,18 @@ class MonitorPreviewLifecycleTests(unittest.TestCase):
         self.assertEqual(calls["count"], 2)
 
     def test_preview_stops_on_ffmpeg_death(self):
+        """Execute test preview stops on ffmpeg death.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         class DeadCapture:
             def is_alive(self):
+                """Execute is alive.
+                
+                Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+                the behavior without duplicating logic.
+                """
                 return False
 
         self.monitor_service._PREVIEW_LIVE_ENABLED = True

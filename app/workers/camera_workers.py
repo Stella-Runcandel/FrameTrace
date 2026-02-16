@@ -17,6 +17,11 @@ class CameraProbeWorker(QThread):
     cameraIndicesReady = pyqtSignal(list)
 
     def __init__(self, max_devices=10):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.max_devices = max_devices
 
@@ -39,6 +44,11 @@ class CameraSnapshotWorker(QThread):
     snapshotFailed = pyqtSignal(str)
 
     def __init__(self, device_name, width, height, fps):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.device_name = device_name
         self.width = width

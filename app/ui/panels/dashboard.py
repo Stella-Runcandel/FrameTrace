@@ -65,6 +65,11 @@ class DashboardPanel(QWidget):
     ]
 
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.nav = nav
         self.profile_preview_bytes = None
@@ -285,6 +290,11 @@ class DashboardPanel(QWidget):
         self.refresh()
 
     def on_play_alert_sound(self):
+        """Execute on play alert sound.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if self.alert_player.source().isEmpty():
             logging.warning("Alert MP3 missing or invalid")
         else:
@@ -300,10 +310,20 @@ class DashboardPanel(QWidget):
             logging.warning("Alert GIF missing or invalid")
 
     def _hide_alert_animation(self):
+        """Execute  hide alert animation.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.alert_movie.stop()
         self.alert_label.setVisible(False)
 
     def select_profile(self):
+        """Execute select profile.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profiles = list_profiles()
         if not profiles:
             self.status_label.setText("No profiles found")
@@ -313,6 +333,11 @@ class DashboardPanel(QWidget):
         self.status_label.setText("Profile selected")
 
     def select_reference(self):
+        """Execute select reference.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.active_profile:
             self.status_label.setText("Select a profile first")
             return
@@ -321,6 +346,11 @@ class DashboardPanel(QWidget):
         self.status_label.setText(message)
 
     def start(self):
+        """Execute start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if app_state.monitoring_active:
             self.status_label.setText("Monitoring already running")
             return
@@ -340,6 +370,11 @@ class DashboardPanel(QWidget):
         self.refresh()
 
     def stop(self):
+        """Execute stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.monitoring_active:
             self.status_label.setText("Monitoring is not running")
             return
@@ -348,6 +383,11 @@ class DashboardPanel(QWidget):
         self.refresh()
 
     def freeze_frame(self):
+        """Execute freeze frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         frozen = freeze_latest_global_frame()
         if frozen is None:
             self.status_label.setText("No frame available to capture")
@@ -361,25 +401,50 @@ class DashboardPanel(QWidget):
         self.update_camera_preview()
 
     def toggle_live_preview(self):
+        """Execute toggle live preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self._frozen_frame = None
         enabled = self.unfreeze_btn.isChecked()
         self._set_live_preview_enabled(enabled)
 
     def closeEvent(self, event):
+        """Execute closeEvent.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.preview_timer.stop()
         release_preview_capture()
         super().closeEvent(event)
 
     def showEvent(self, event):
+        """Execute showEvent.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().showEvent(event)
         self.update_camera_preview()
 
     def close(self):
+        """Execute close.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.preview_timer.stop()
         release_preview_capture()
         self.monitor_controller.stop()
 
     def refresh(self):
+        """Execute refresh.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.profile_label.setText(f"Profile: {app_state.active_profile or 'None'}")
         self.frame_label.setText(f"Selected Frame: {app_state.selected_frame or 'None'}")
         self.ref_label.setText(f"Selected Reference: {app_state.selected_reference or 'None'}")
@@ -404,6 +469,11 @@ class DashboardPanel(QWidget):
         self.update_profile_preview()
 
     def update_detection_strictness(self):
+        """Execute update detection strictness.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         resolved = get_detection_threshold(profile)
         index = self._strictness_index_for_threshold(resolved)
@@ -413,6 +483,11 @@ class DashboardPanel(QWidget):
         self.strictness_combo.setEnabled(bool(profile))
 
     def update_fps_setting(self):
+        """Execute update fps setting.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         self.fps_spinbox.blockSignals(True)
         self.fps_spinbox.setValue(get_profile_fps(profile))
@@ -420,6 +495,11 @@ class DashboardPanel(QWidget):
         self.fps_spinbox.setEnabled(bool(profile))
 
     def _strictness_index_for_threshold(self, threshold):
+        """Execute  strictness index for threshold.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         try:
             target = float(threshold)
         except (TypeError, ValueError):
@@ -428,16 +508,31 @@ class DashboardPanel(QWidget):
         return distances.index(min(distances))
 
     def on_fps_changed(self, value):
+        """Execute on fps changed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if app_state.active_profile:
             update_profile_fps(app_state.active_profile, value)
 
     def on_strictness_changed(self, index):
+        """Execute on strictness changed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if index < 0 or not app_state.active_profile:
             return
         _, threshold = self.STRICTNESS_OPTIONS[index]
         update_profile_detection_threshold(app_state.active_profile, threshold)
 
     def update_camera_devices(self):
+        """Execute update camera devices.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         self._updating_camera_combo = True
         self.camera_combo.blockSignals(True)
@@ -480,6 +575,11 @@ class DashboardPanel(QWidget):
         self.camera_refresh_btn.setEnabled(True)
 
     def on_camera_changed(self, index):
+        """Execute on camera changed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if index < 0 or not app_state.active_profile:
             return
         if self._updating_camera_combo:
@@ -503,6 +603,11 @@ class DashboardPanel(QWidget):
         self.ensure_preview_capture()
 
     def update_profile_preview(self):
+        """Execute update profile preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.active_profile:
             self.profile_preview_bytes = None
             self.profile_preview.setText("No profile preview")
@@ -528,6 +633,11 @@ class DashboardPanel(QWidget):
 
 
     def on_monitor_state_changed(self, state):
+        """Execute on monitor state changed.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         running = state == "RUNNING"
         app_state.monitoring_active = running
         if running:
@@ -551,6 +661,11 @@ class DashboardPanel(QWidget):
         self.update_camera_preview()
 
     def on_match_debug_frame(self, payload):
+        """Execute on match debug frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         frame = np.asarray(payload)
         if frame.ndim == 2:
             mode = "gray"
@@ -569,6 +684,11 @@ class DashboardPanel(QWidget):
         self.update_camera_preview()
 
     def on_metrics_update(self, payload):
+        """Execute on metrics update.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         capture_fps = payload.get("capture_fps", 0.0)
         process_fps = payload.get("process_fps", 0.0)
         dropped = payload.get("dropped", 0)
@@ -584,6 +704,11 @@ class DashboardPanel(QWidget):
             self.last_detection_label.setText("Last Detection: --")
 
     def resizeEvent(self, event):
+        """Execute resizeEvent.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().resizeEvent(event)
         if self.profile_preview_bytes:
             pixmap = QPixmap()
@@ -599,12 +724,22 @@ class DashboardPanel(QWidget):
         self.update_camera_preview()
 
     def refresh_camera_devices(self):
+        """Execute refresh camera devices.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         devices = list_camera_devices(force_refresh=True)
         self._cached_available_camera_devices = devices
         logging.info("[CAM_UI] refresh camera devices -> %s", self._cached_available_camera_devices)
         self.update_camera_devices()
 
     def _preview_target_config(self):
+        """Execute  preview target config.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         width = self.MAX_PREVIEW_WIDTH
         height = self.MAX_PREVIEW_HEIGHT
@@ -612,6 +747,11 @@ class DashboardPanel(QWidget):
         return width, height, fps
 
     def _resolve_gray_payload(self, payload):
+        """Execute  resolve gray payload.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if isinstance(payload, np.ndarray):
             if payload.ndim == 2:
                 return np.ascontiguousarray(payload)
@@ -634,6 +774,11 @@ class DashboardPanel(QWidget):
             return None
 
     def _save_snapshot_frame(self, frame_item):
+        """Execute  save snapshot frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.active_profile or frame_item is None:
             return False
         try:
@@ -657,6 +802,11 @@ class DashboardPanel(QWidget):
             return False
 
     def _set_live_preview_enabled(self, enabled: bool):
+        """Execute  set live preview enabled.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         set_preview_live_enabled(enabled)
         self.unfreeze_btn.blockSignals(True)
         self.unfreeze_btn.setChecked(enabled)
@@ -698,9 +848,19 @@ class DashboardPanel(QWidget):
         self.update_camera_preview()
 
     def ensure_preview_capture(self):
+        """Execute ensure preview capture.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self._set_live_preview_enabled(self.unfreeze_btn.isChecked())
 
     def update_camera_preview(self):
+        """Execute update camera preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.isVisible():
             return
 

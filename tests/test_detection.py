@@ -32,6 +32,11 @@ class DetectionTests(unittest.TestCase):
     """Validate deterministic detection behavior."""
 
     def setUp(self):
+        """Execute setUp.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         self.original_cwd = os.getcwd()
@@ -39,6 +44,11 @@ class DetectionTests(unittest.TestCase):
         os.environ["APP_DB_PATH"] = str(Path(self.temp_dir.name) / "Data" / "app.db")
 
     def tearDown(self):
+        """Execute tearDown.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         os.chdir(self.original_cwd)
         os.environ.pop("APP_DB_PATH", None)
 

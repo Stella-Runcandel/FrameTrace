@@ -25,6 +25,11 @@ from core.profiles import get_frame_image_bytes, import_frames, list_frames
 
 class FramesPanel(QWidget):
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.selected_btn = None
         self.nav = nav
@@ -68,6 +73,11 @@ class FramesPanel(QWidget):
         self.setLayout(layout)
 
     def refresh_frames(self):
+        """Execute refresh frames.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.selected_btn = None
         while self.body_layout.count():
             item = self.body_layout.takeAt(0)
@@ -123,6 +133,11 @@ class FramesPanel(QWidget):
         self.update_preview(app_state.selected_frame)
 
     def add_frames(self):
+        """Execute add frames.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         if not profile:
             return
@@ -133,6 +148,11 @@ class FramesPanel(QWidget):
         self.refresh_frames()
 
     def select_frame(self, frame_name):
+        """Execute select frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         success, message = self.frame_controller.select_frame(frame_name)
         if not success:
             QMessageBox.warning(self, "Select Frame", message)
@@ -153,6 +173,11 @@ class FramesPanel(QWidget):
         self.selected_btn.setStyleSheet(Styles.selected_button())
 
     def delete_frame(self, frame_name):
+        """Execute delete frame.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         confirm = QMessageBox.question(
             self,
             "Delete Frame",
@@ -169,6 +194,11 @@ class FramesPanel(QWidget):
         self.refresh_frames()
 
     def update_preview(self, frame_name):
+        """Execute update preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not frame_name:
             self.preview_bytes = None
             self.preview_label.setText("No frame preview")
@@ -193,6 +223,11 @@ class FramesPanel(QWidget):
         self.preview_label.setText("")
 
     def resizeEvent(self, event):
+        """Execute resizeEvent.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().resizeEvent(event)
         if not self.preview_bytes:
             return

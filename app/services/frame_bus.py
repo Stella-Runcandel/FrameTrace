@@ -22,6 +22,11 @@ class FramePacket:
 
 class FrameQueue:
     def __init__(self, maxlen: int = 3, policy: OverflowPolicy = OverflowPolicy.DROP_OLDEST):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.maxlen = max(1, int(maxlen))
         self.policy = policy
         self._queue: Deque[FramePacket] = deque(maxlen=self.maxlen)
@@ -31,6 +36,11 @@ class FrameQueue:
         self.stale = False
 
     def put(self, packet: FramePacket) -> None:
+        """Execute put.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._cv:
             if self.policy == OverflowPolicy.LAST_ONLY:
                 dropped_now = len(self._queue)
@@ -45,6 +55,11 @@ class FrameQueue:
             self._cv.notify_all()
 
     def get(self, timeout: float | None = None) -> FramePacket | None:
+        """Execute get.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._cv:
             if not self._queue:
                 self._cv.wait(timeout=timeout)
@@ -53,14 +68,29 @@ class FrameQueue:
             return self._queue.popleft()
 
     def peek_latest(self) -> FramePacket | None:
+        """Execute peek latest.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._cv:
             return self._queue[-1] if self._queue else None
 
     def clear(self, stale: bool = True) -> None:
+        """Execute clear.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._cv:
             self._queue.clear()
             self.stale = stale
 
     def size(self) -> int:
+        """Execute size.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         with self._cv:
             return len(self._queue)

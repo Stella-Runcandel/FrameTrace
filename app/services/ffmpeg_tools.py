@@ -40,6 +40,11 @@ class CaptureConfig:
     enforce_maximum: bool = False
 
     def is_equivalent_for_capture(self, other: "CaptureConfig") -> bool:
+        """Execute is equivalent for capture.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return (
             self.width == other.width
             and self.height == other.height
@@ -61,6 +66,11 @@ _ENUM_CACHE: list[CameraDevice] | None = None
 
 
 def _normalize_camera_device(device: CameraDevice | str) -> CameraDevice:
+    """Execute  normalize camera device.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     if isinstance(device, CameraDevice):
         return device
     name = str(device)
@@ -69,6 +79,11 @@ def _normalize_camera_device(device: CameraDevice | str) -> CameraDevice:
 
 
 def resolve_ffmpeg_path() -> str:
+    """Execute resolve ffmpeg path.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     env_path = os.environ.get("FFMPEG_PATH")
     if env_path and os.path.isfile(env_path):
         return env_path
@@ -80,6 +95,11 @@ def resolve_ffmpeg_path() -> str:
 
 
 def _run_ffmpeg_command(args, timeout=10, text=True):
+    """Execute  run ffmpeg command.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     try:
         return subprocess.run(
             args,
@@ -94,6 +114,11 @@ def _run_ffmpeg_command(args, timeout=10, text=True):
 
 
 def list_camera_devices(force_refresh: bool = False) -> list[CameraDevice]:
+    """Execute list camera devices.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _ENUM_CACHE
     if _ENUM_CACHE is not None and not force_refresh:
         return [_normalize_camera_device(d) for d in _ENUM_CACHE]
@@ -126,6 +151,11 @@ def list_video_devices(force_refresh: bool = False) -> list[str]:
 
 
 def _find_camera_device(selected_display_name: str, force_refresh: bool = False) -> CameraDevice | None:
+    """Execute  find camera device.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     devices = list_camera_devices(force_refresh=force_refresh)
     for device in devices:
         if device.display_name.casefold() == selected_display_name.casefold():
@@ -134,6 +164,11 @@ def _find_camera_device(selected_display_name: str, force_refresh: bool = False)
 
 
 def build_capture_input_candidates(selected_display_name: str, force_refresh: bool = False) -> list[CaptureInputCandidate]:
+    """Execute build capture input candidates.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     device = _find_camera_device(selected_display_name, force_refresh=force_refresh)
     if not device:
         return []
@@ -144,6 +179,11 @@ def build_capture_input_candidates(selected_display_name: str, force_refresh: bo
 
 
 def verify_windows_dshow_device_token(input_token: str, timeout: int = 8) -> tuple[bool, str]:
+    """Execute verify windows dshow device token.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     if platform.system() != "Windows":
         return True, "non-windows"
 
@@ -164,6 +204,11 @@ def verify_windows_dshow_device_token(input_token: str, timeout: int = 8) -> tup
 
 
 def resolve_camera_device_token(selected_display_name: str, force_refresh: bool = False) -> str | None:
+    """Execute resolve camera device token.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     if not selected_display_name:
         LOG.warning("[CAM_CAPTURE] selected display name is empty")
         return None
@@ -201,6 +246,11 @@ def build_ffmpeg_capture_command(
     allow_input_tuning: bool = True,
     pipeline: str = "monitoring",
 ):
+    """Execute build ffmpeg capture command.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     ffmpeg_loglevel = "verbose" if ffmpeg_debug_enabled() else "warning"
     width = int(config.width)
     height = int(config.height)
@@ -257,10 +307,20 @@ def build_ffmpeg_capture_command(
 
 
 def list_dshow_video_devices() -> list[str]:
+    """Execute list dshow video devices.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     return list_video_devices(force_refresh=True)
 
 
 def capture_single_frame(device_name: str, width: int, height: int, fps: int):
+    """Execute capture single frame.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     token = resolve_camera_device_token(device_name, force_refresh=True)
     if not token:
         raise RuntimeError(f"camera '{device_name}' not found in enumerated ffmpeg devices")

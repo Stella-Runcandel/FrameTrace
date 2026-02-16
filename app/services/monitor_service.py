@@ -58,6 +58,11 @@ _LAST_CAMERA_RELEASE_AT = 0.0
 
 
 def _emit_capture_event(payload: dict) -> None:
+    """Execute  emit capture event.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     try:
         severity = str(payload.get("severity", "INFO")).upper()
         pipeline = str(payload.get("pipeline", ""))
@@ -84,6 +89,11 @@ def _acquire_camera_owner(pipeline: str, input_token: str) -> tuple[bool, str | 
 
 
 def _release_camera_owner(pipeline: str, input_token: str) -> None:
+    """Execute  release camera owner.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _ACTIVE_OWNER_PIPELINE, _ACTIVE_CAMERA_TOKEN, _LAST_CAMERA_RELEASE_AT
     with _CAMERA_OWNER_LOCK:
         if _ACTIVE_OWNER_PIPELINE == pipeline and _ACTIVE_CAMERA_TOKEN == input_token:
@@ -104,6 +114,11 @@ def _wait_camera_reopen_cooldown(stop_event: threading.Event | None = None) -> b
     return True
 
 def _build_monitoring_config_ladder(width: int, height: int, fps: int, *, is_virtual: bool) -> list[CaptureConfig]:
+    """Execute  build monitoring config ladder.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     requested = CaptureConfig(width=width, height=height, fps=fps, input_width=width, input_height=height, input_fps=fps, label="requested")
     implicit = CaptureConfig(width=width, height=height, fps=fps, input_width=None, input_height=None, input_fps=None, label="implicit-default")
     # Virtual cameras (OBS/Broadcast/etc.) are unstable when forced at input open time.
@@ -119,6 +134,11 @@ def _ensure_global_capture(
     *,
     allow_input_tuning: bool,
 ) -> tuple[FfmpegCapture, FrameQueue]:
+    """Execute  ensure global capture.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _GLOBAL_CAPTURE, _GLOBAL_QUEUE, _GLOBAL_USERS, _GLOBAL_INPUT_TOKEN, _GLOBAL_CONFIG
     with _GLOBAL_LOCK:
         if _GLOBAL_CAPTURE and _GLOBAL_CAPTURE.is_alive():
@@ -171,6 +191,11 @@ def _ensure_global_capture(
 
 
 def _release_global_capture(clear_queue: bool = False) -> None:
+    """Execute  release global capture.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _GLOBAL_CAPTURE, _GLOBAL_QUEUE, _GLOBAL_USERS, _GLOBAL_INPUT_TOKEN, _GLOBAL_CONFIG
     with _GLOBAL_LOCK:
         if _GLOBAL_USERS <= 0:
@@ -190,6 +215,11 @@ def _release_global_capture(clear_queue: bool = False) -> None:
 
 
 def _ensure_preview_capture(input_token: str, config: CaptureConfig, *, allow_input_tuning: bool) -> tuple[bool, str | None]:
+    """Execute  ensure preview capture.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_CAPTURE, _PREVIEW_QUEUE, _PREVIEW_INPUT_TOKEN, _PREVIEW_CONFIG, _PREVIEW_LAST_RESTART_AT
     with _PREVIEW_LOCK:
         if _PREVIEW_PAUSED_FOR_MONITORING:
@@ -235,6 +265,11 @@ def _ensure_preview_capture(input_token: str, config: CaptureConfig, *, allow_in
 
 
 def release_preview_capture() -> None:
+    """Execute release preview capture.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_CAPTURE, _PREVIEW_QUEUE, _PREVIEW_INPUT_TOKEN, _PREVIEW_CONFIG, _PREVIEW_LAST_RESTART_AT
     with _PREVIEW_LOCK:
         if _PREVIEW_CAPTURE:
@@ -250,6 +285,11 @@ def release_preview_capture() -> None:
 
 
 def pause_preview_for_monitoring() -> None:
+    """Execute pause preview for monitoring.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_LIVE_ENABLED, _PREVIEW_PAUSED_FOR_MONITORING, _PREVIEW_STATIC_FRAME
     with _PREVIEW_LOCK:
         _PREVIEW_PAUSED_FOR_MONITORING = True
@@ -269,6 +309,11 @@ def pause_preview_for_monitoring() -> None:
 
 
 def resume_preview_after_monitoring() -> None:
+    """Execute resume preview after monitoring.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_PAUSED_FOR_MONITORING
     with _PREVIEW_LOCK:
         _PREVIEW_PAUSED_FOR_MONITORING = False
@@ -328,12 +373,22 @@ def capture_preview_snapshot(selected_display_name: str, width: int, height: int
 
 
 def set_preview_live_enabled(enabled: bool) -> None:
+    """Execute set preview live enabled.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_LIVE_ENABLED
     with _PREVIEW_LOCK:
         _PREVIEW_LIVE_ENABLED = bool(enabled)
 
 
 def start_preview_for_selected_camera(selected_display_name: str, width: int, height: int, fps: int) -> tuple[bool, str | None]:
+    """Execute start preview for selected camera.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_STATIC_FRAME
     candidates = build_capture_input_candidates(selected_display_name)
     if not candidates:
@@ -373,6 +428,11 @@ def start_preview_for_selected_camera(selected_display_name: str, width: int, he
 
 
 def get_latest_preview_frame():
+    """Execute get latest preview frame.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     global _PREVIEW_LIVE_ENABLED
     should_release = False
     with _PREVIEW_LOCK:
@@ -397,6 +457,11 @@ def get_latest_preview_frame():
 
 
 def get_preview_frame_shape() -> tuple[int, int] | None:
+    """Execute get preview frame shape.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     with _PREVIEW_LOCK:
         if _PREVIEW_CONFIG:
             return (_PREVIEW_CONFIG.width, _PREVIEW_CONFIG.height)
@@ -404,6 +469,11 @@ def get_preview_frame_shape() -> tuple[int, int] | None:
 
 
 def get_latest_global_frame():
+    """Execute get latest global frame.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     with _GLOBAL_LOCK:
         if not _GLOBAL_QUEUE:
             return None
@@ -414,6 +484,11 @@ def get_latest_global_frame():
 
 
 def freeze_latest_global_frame():
+    """Execute freeze latest global frame.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     frame = get_latest_preview_frame() or get_latest_global_frame()
     if frame is not None:
         return frame
@@ -434,6 +509,11 @@ class MonitorService(QThread):
     play_alert_sound = pyqtSignal()
 
     def __init__(self):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.running = False
         self.detector_state = dect.new_detector_state()
@@ -447,9 +527,19 @@ class MonitorService(QThread):
         self._monitor_fps = 1
 
     def current_state(self) -> MonitoringState:
+        """Execute current state.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return self._state.state
 
     def _set_state(self, text: str, transition) -> bool:
+        """Execute  set state.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         try:
             transition()
         except InvalidTransition as exc:
@@ -459,6 +549,11 @@ class MonitorService(QThread):
         return True
 
     def run(self):
+        """Execute run.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self._set_state(MonitoringState.STARTING.value, self._state.request_start):
             return
 
@@ -597,14 +692,28 @@ class MonitorService(QThread):
             resume_preview_after_monitoring()
 
     def _drain_ffmpeg_logs(self):
+        """Execute  drain ffmpeg logs.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self._capture:
             return
-        while not self._capture.log_events.empty():
-            event = self._capture.log_events.get_nowait()
+        # BUGFIX: queue.empty() + get_nowait() is racy across threads; consume until Queue.Empty.
+        while True:
+            try:
+                event = self._capture.log_events.get_nowait()
+            except queue.Empty:
+                break
             if event.level == LogLevel.ERROR:
                 self.status.emit(f"FFmpeg error: {event.message}")
 
     def _processing_loop(self, profile, queue: FrameQueue, width: int, height: int):
+        """Execute  processing loop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         processed = 0
         start = time.time()
         last_confidence = 0.0
@@ -671,6 +780,11 @@ class MonitorService(QThread):
                 start = now
 
     def stop(self, clear_queue: bool = False, *, emit_status: bool = True):
+        """Execute stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if self._state.state in (MonitoringState.IDLE, MonitoringState.STOPPING):
             return
 

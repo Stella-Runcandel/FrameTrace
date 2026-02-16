@@ -22,6 +22,11 @@ from core.profiles import get_profile_icon_bytes
 
 class ProfileSelectorPanel(QWidget):
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.nav = nav
         self.profile_controller = ProfileController()
@@ -62,6 +67,11 @@ class ProfileSelectorPanel(QWidget):
         self.setLayout(layout)
 
     def refresh_profiles(self):
+        """Execute refresh profiles.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.selected_btn = None
         while self.body_layout.count():
             item = self.body_layout.takeAt(0)
@@ -119,6 +129,11 @@ class ProfileSelectorPanel(QWidget):
             self.body_layout.addLayout(row)
 
     def select_profile(self, name):
+        """Execute select profile.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         success, message = self.profile_controller.select_profile(name)
         if not success:
             QMessageBox.warning(self, "Select Profile", message)
@@ -126,6 +141,11 @@ class ProfileSelectorPanel(QWidget):
         self.nav.pop()
 
     def create_profile(self):
+        """Execute create profile.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         name, ok = QInputDialog.getText(self, "Create New Profile", "Enter profile name:")
         if not ok or not name.strip():
             return
@@ -140,6 +160,11 @@ class ProfileSelectorPanel(QWidget):
         self.nav.pop()
 
     def delete_profile(self, name):
+        """Execute delete profile.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         confirm = QMessageBox.question(
             self,
             "Delete Profile",
@@ -155,6 +180,11 @@ class ProfileSelectorPanel(QWidget):
         self.refresh_profiles()
 
     def set_profile_icon(self):
+        """Execute set profile icon.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.active_profile:
             QMessageBox.warning(self, "Set Profile Icon", "Select a profile first.")
             return
