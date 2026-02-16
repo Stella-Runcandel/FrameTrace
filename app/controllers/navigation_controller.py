@@ -3,9 +3,19 @@ from app.app_state import app_state
 
 class NavigationController:
     def __init__(self, stack_layout):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.stack = stack_layout
 
     def push(self, widget, name):
+        """Execute push.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         app_state.nav_stack.append(name)
         self.stack.addWidget(widget)
         self.stack.setCurrentWidget(widget)
@@ -14,6 +24,11 @@ class NavigationController:
             self.stack.parentWidget().nav_bar.hide()
 
     def pop(self):
+        """Execute pop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if len(app_state.nav_stack) <= 1:
             return  # don't pop dashboard
 
@@ -41,4 +56,9 @@ class NavigationController:
             current.refresh()
 
     def current(self):
+        """Execute current.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return app_state.nav_stack[-1]

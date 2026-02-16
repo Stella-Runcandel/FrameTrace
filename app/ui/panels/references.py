@@ -20,6 +20,11 @@ from core.profiles import get_reference_image_bytes, get_reference_parent_frame,
 
 class ReferencesPanel(QWidget):
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.selected_btn = None
         self.nav = nav
@@ -64,6 +69,11 @@ class ReferencesPanel(QWidget):
         self.setLayout(layout)
 
     def refresh(self):
+        """Execute refresh.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.refresh_references()
         self.update_new_ref_button()
         self.info_label.setText(
@@ -71,6 +81,11 @@ class ReferencesPanel(QWidget):
         )
 
     def refresh_references(self):
+        """Execute refresh references.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.selected_btn = None
         while self.body_layout.count():
             item = self.body_layout.takeAt(0)
@@ -128,6 +143,11 @@ class ReferencesPanel(QWidget):
         self.update_preview(app_state.selected_reference)
     
     def select_reference(self, ref_name):
+        """Execute select reference.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         success, message = self.reference_controller.select_reference(ref_name)
         if not success:
             QMessageBox.warning(self, "Select Reference", message)
@@ -148,6 +168,11 @@ class ReferencesPanel(QWidget):
         self.selected_btn.setStyleSheet(Styles.selected_button())
 
     def create_reference(self):
+        """Execute create reference.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not app_state.selected_frame:
             QMessageBox.warning(self, "Create Reference", "Select a frame first.")
             return
@@ -156,6 +181,11 @@ class ReferencesPanel(QWidget):
         self.nav.push(CropPanel(self.nav), "crop")
 
     def update_new_ref_button(self):
+        """Execute update new ref button.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if app_state.selected_frame:
             self.new_ref_btn.setEnabled(True)
             self.new_ref_btn.setText(f"➕ New Reference (from {app_state.selected_frame})")
@@ -164,6 +194,11 @@ class ReferencesPanel(QWidget):
             self.new_ref_btn.setText("➕ New Reference (select a frame first)")
 
     def delete_reference(self, ref_name):
+        """Execute delete reference.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         confirm = QMessageBox.question(
             self,
             "Delete Reference",
@@ -180,6 +215,11 @@ class ReferencesPanel(QWidget):
         self.refresh()
 
     def update_preview(self, ref_name):
+        """Execute update preview.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not ref_name:
             self.preview_bytes = None
             self.preview_label.setText("No reference preview")
@@ -204,6 +244,11 @@ class ReferencesPanel(QWidget):
         self.preview_label.setText("")
 
     def resizeEvent(self, event):
+        """Execute resizeEvent.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().resizeEvent(event)
         if not self.preview_bytes:
             return

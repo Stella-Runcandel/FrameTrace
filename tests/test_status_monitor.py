@@ -25,6 +25,11 @@ class StatusMonitorTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Execute setUpClass.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt6.QtWidgets import QApplication
 

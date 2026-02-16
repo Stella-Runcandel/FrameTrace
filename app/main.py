@@ -92,6 +92,11 @@ QScrollArea > QWidget > QWidget {
 """
 
 def main():
+    """Execute main.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     import sys
     import ctypes
     from pathlib import Path

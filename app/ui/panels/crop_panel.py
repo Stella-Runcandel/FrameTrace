@@ -14,6 +14,11 @@ from core.profiles import get_profile_dirs
 
 class CropPanel(QWidget):
     def __init__(self, nav):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
         self.nav = nav
 
@@ -35,6 +40,11 @@ class CropPanel(QWidget):
         self.setLayout(layout)
 
     def add_crop(self):
+        """Execute add crop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         profile = app_state.active_profile
         frame = app_state.selected_frame
 

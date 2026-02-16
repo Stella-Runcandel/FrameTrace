@@ -13,6 +13,11 @@ class BaseProfileConfig:
 
     @classmethod
     def from_profile(cls, profile_name: str) -> "BaseProfileConfig":
+        """Execute from profile.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return cls(
             profile_name=profile_name,
             detection_threshold=get_detection_threshold(profile_name),
@@ -25,6 +30,11 @@ class RuntimeDebugConfig:
 
     @classmethod
     def from_base(cls, base: BaseProfileConfig) -> "RuntimeDebugConfig":
+        """Execute from base.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return cls(detection_threshold=base.detection_threshold)
 
 

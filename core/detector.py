@@ -100,6 +100,11 @@ class DetectionConfig:
 # =========================
 
 def _compute_initial_debug_storage_bytes():
+    """Execute  compute initial debug storage bytes.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     debug_dir = get_debug_dir()
     total = 0
     try:
@@ -177,6 +182,11 @@ def _save_debug_image_if_allowed(debug_dir, debug_image, state: DetectorState, p
 
 
 def _debug_images_similar(img1, img2, threshold=0.97):
+    """Execute  debug images similar.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     if img1 is None or img2 is None:
         return False
 
@@ -527,6 +537,11 @@ def frame_comp(profile_name, state=None):
 
 
 def _get_profile_templates(profile_name: str, selected_reference: str | None = None) -> list[_TemplateCacheEntry]:
+    """Execute  get profile templates.
+    
+    Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+    the behavior without duplicating logic.
+    """
     references_dir = get_profile_dirs(profile_name)["references"]
     cache = _TEMPLATE_CACHE_BY_PROFILE.get(profile_name)
 

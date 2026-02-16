@@ -7,6 +7,11 @@ class AppState:
     """Global UI and monitoring state: active profile, selected frame/reference, monitoring flag."""
 
     def __init__(self):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.active_profile = storage.get_app_state("active_profile")
         self.selected_frame = None
         self.selected_reference = None

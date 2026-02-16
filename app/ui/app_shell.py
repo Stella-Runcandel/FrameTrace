@@ -25,6 +25,11 @@ from core.profiles import list_profiles
 
 class AppShell(QWidget):
     def __init__(self):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         super().__init__()
 
         self.settings = QSettings()
@@ -75,6 +80,11 @@ class AppShell(QWidget):
         )
 
     def load_app_icon(self):
+        """Execute load app icon.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         app = QApplication.instance()
         icon_path = self.settings.value("ui/app_icon_path", "", str)
         if icon_path:
@@ -100,6 +110,11 @@ class AppShell(QWidget):
             app.setWindowIcon(default_icon)
 
     def choose_app_icon(self):
+        """Execute choose app icon.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         icon_path, _ = QFileDialog.getOpenFileName(
             self,
             "Choose App Icon",

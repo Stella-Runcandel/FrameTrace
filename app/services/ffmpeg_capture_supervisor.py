@@ -44,6 +44,11 @@ class FfmpegCaptureSupervisor:
         pipeline: str = "monitoring",
         log_sink: Callable[[dict], None] | None = None,
     ):
+        """Execute   init  .
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self.input_token = input_token
         self.config = config
         self.allow_input_tuning = allow_input_tuning
@@ -63,6 +68,11 @@ class FfmpegCaptureSupervisor:
         self.last_error: str | None = None
 
     def start(self) -> None:
+        """Execute start.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         cmd = build_ffmpeg_capture_command(
             self.input_token,
             self.config,
@@ -88,6 +98,11 @@ class FfmpegCaptureSupervisor:
         self._stderr_thread.start()
 
     def _reader_loop(self) -> None:
+        """Execute  reader loop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.process or not self.process.stdout:
             return
         frame_size = self.config.width * self.config.height
@@ -106,6 +121,11 @@ class FfmpegCaptureSupervisor:
                 self.process.terminate()
 
     def _stderr_loop(self) -> None:
+        """Execute  stderr loop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self.process or not self.process.stderr:
             return
         for raw in iter(self.process.stderr.readline, b""):
@@ -120,6 +140,11 @@ class FfmpegCaptureSupervisor:
                 self.last_error = text
 
     def _safe_emit(self, payload: dict) -> None:
+        """Execute  safe emit.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if not self._log_sink:
             return
         try:
@@ -129,6 +154,11 @@ class FfmpegCaptureSupervisor:
             pass
 
     def _emit_log(self, level: LogLevel, message: str) -> None:
+        """Execute  emit log.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         if message == self._last_log_message and level == self._last_log_level:
             self._last_log_repeat += 1
             if self._last_log_repeat % 10 != 0:
@@ -172,6 +202,11 @@ class FfmpegCaptureSupervisor:
             pass
 
     def _classify_log(self, text: str) -> LogLevel:
+        """Execute  classify log.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         lowered = text.lower()
         if any(token in lowered for token in ("error", "failed", "invalid", "unable", "i/o")):
             return LogLevel.ERROR
@@ -181,6 +216,11 @@ class FfmpegCaptureSupervisor:
 
     @staticmethod
     def _read_exact(stream, size: int) -> bytes | None:
+        """Execute  read exact.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         data = bytearray()
         while len(data) < size:
             chunk = stream.read(size - len(data))
@@ -190,6 +230,11 @@ class FfmpegCaptureSupervisor:
         return bytes(data)
 
     def stop(self, timeout: float = 5.0) -> None:
+        """Execute stop.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         self._stop.set()
         if self.process and self.process.poll() is None:
             self.process.terminate()
@@ -215,4 +260,9 @@ class FfmpegCaptureSupervisor:
                 pass
 
     def is_alive(self) -> bool:
+        """Execute is alive.
+        
+        Why this exists: this function encapsulates one focused part of the app workflow so callers can reuse
+        the behavior without duplicating logic.
+        """
         return bool(self.process and self.process.poll() is None)
